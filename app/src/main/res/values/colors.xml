@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>   //Standard Black
+    <color name="white">#FFFFFFFF</color>   //Standard White
+    <color name="prussian_blue">#0A0425</color> //For the background
+    <color name="amber_honey">#F3A916</color>   //For key components
+    <color name="mint_cream">#F8FFF4</color>    //For Text
+    <color name="ice_blue">#A5D6F7</color>
+</resources>

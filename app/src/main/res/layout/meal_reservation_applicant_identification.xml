@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/prussian_blue"
+    tools:context=".meal_reservation.MealReservationApplicantIdentificationActivity">
+
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/toolbar1"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="@color/prussian_blue"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <TextView
+        android:id="@+id/textViewTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/client_signup_title"
+        android:textColor="@color/amber_honey"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        app:layout_constraintBottom_toBottomOf="@+id/toolbar1"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="@+id/toolbar1" />
+
+    <TextView
+        android:id="@+id/textViewDesc"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="30dp"
+        android:layout_marginTop="20dp"
+        android:layout_marginEnd="30dp"
+        android:text="@string/client_signup_desc"
+        android:textAlignment="center"
+        android:textColor="@color/amber_honey"
+        android:textSize="16sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/toolbar1" />
+
+    <androidx.core.widget.NestedScrollView
+        android:id="@+id/signupScrollView"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:fillViewport="true"
+        android:clipToPadding="false"
+        android:paddingStart="30dp"
+        android:paddingTop="16dp"
+        android:paddingEnd="30dp"
+        android:paddingBottom="24dp"
+        app:layout_constraintTop_toBottomOf="@id/textViewDesc"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <LinearLayout
+            android:id="@+id/formContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                android:text="@string/client_signup_required_fields"
+                android:textColor="@color/amber_honey"
+                android:textSize="14sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:text="Prénom *"
+                android:textColor="@color/amber_honey"
+                android:textSize="16sp" />
+
+            <EditText
+                android:id="@+id/editFirstName"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginBottom="20dp"
+                android:backgroundTint="@color/amber_honey"
+                android:hint="Ex. Jean"
+                android:inputType="textPersonName"
+                android:textColor="@color/white"
+                android:textColorHint="#66FFFFFF" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:text="Nom *"
+                android:textColor="@color/amber_honey"
+                android:textSize="16sp" />
+
+            <EditText
+                android:id="@+id/editLastName"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginBottom="20dp"
+                android:backgroundTint="@color/amber_honey"
+                android:hint="Ex. Dupont"
+                android:inputType="textPersonName"
+                android:textColor="@color/white"
+                android:textColorHint="#66FFFFFF" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:text="Adresse e-mail *"
+                android:textColor="@color/amber_honey"
+                android:textSize="16sp" />
+
+            <EditText
+                android:id="@+id/editEmail"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginBottom="20dp"
+                android:backgroundTint="@color/amber_honey"
+                android:hint="nom@domaine.fr"
+                android:inputType="textEmailAddress"
+                android:textColor="@color/white"
+                android:textColorHint="#66FFFFFF" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:text="Numéro de téléphone *"
+                android:textColor="@color/amber_honey"
+                android:textSize="16sp" />
+
+            <EditText
+                android:id="@+id/editPhone"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginBottom="20dp"
+                android:backgroundTint="@color/amber_honey"
+                android:digits="0123456789"
+                android:hint="10 chiffres (ex. 0612345678)"
+                android:inputType="phone"
+                android:maxLength="10"
+                android:textColor="@color/white"
+                android:textColorHint="#66FFFFFF" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:text="Mot de passe *"
+                android:textColor="@color/amber_honey"
+                android:textSize="16sp" />
+
+            <EditText
+                android:id="@+id/editPassword"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginBottom="20dp"
+                android:backgroundTint="@color/amber_honey"
+                android:hint="6 caractères minimum"
+                android:inputType="textPassword"
+                android:textColor="@color/white"
+                android:textColorHint="#66FFFFFF" />
+
+            <Button
+                android:id="@+id/btnSubmit"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"
+                android:backgroundTint="#333333"
+                android:text="@string/client_signup_cta"
+                android:textAllCaps="false"
+                android:textColor="@color/white"
+                android:textSize="18sp"
+                app:cornerRadius="10dp" />
+
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

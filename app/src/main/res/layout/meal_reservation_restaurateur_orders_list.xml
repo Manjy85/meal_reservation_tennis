@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/main"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/prussian_blue">
+
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/toolbarOrdersList"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="@color/prussian_blue"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <TextView
+        android:id="@+id/textViewOrdersTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Commandes"
+        android:textColor="@color/amber_honey"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        app:layout_constraintBottom_toBottomOf="@+id/toolbarOrdersList"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="@+id/toolbarOrdersList"
+        android:layout_marginStart="16dp" />
+
+    <ImageButton
+        android:id="@+id/btnLogoutOrders"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_marginEnd="12dp"
+        android:background="@android:color/transparent"
+        android:contentDescription="Se deconnecter"
+        android:padding="8dp"
+        android:src="@android:drawable/ic_lock_power_off"
+        app:tint="@color/amber_honey"
+        app:layout_constraintBottom_toBottomOf="@+id/toolbarOrdersList"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="@+id/toolbarOrdersList" />
+
+    <Button
+        android:id="@+id/btnOrdersHistory"
+        android:layout_width="wrap_content"
+        android:layout_height="36dp"
+        android:layout_marginEnd="8dp"
+        android:backgroundTint="@android:color/transparent"
+        android:text="Historique"
+        android:textAllCaps="false"
+        android:textColor="@color/amber_honey"
+        app:layout_constraintBottom_toBottomOf="@+id/toolbarOrdersList"
+        app:layout_constraintEnd_toStartOf="@+id/btnLogoutOrders"
+        app:layout_constraintTop_toTopOf="@+id/toolbarOrdersList" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recyclerViewOrders"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="10dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="16dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/toolbarOrdersList" />
+
+    <TextView
+        android:id="@+id/textViewOrdersEmpty"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:gravity="center"
+        android:text="Aucune commande enregistree"
+        android:textColor="@color/white"
+        android:textSize="16sp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="@id/recyclerViewOrders"
+        app:layout_constraintEnd_toEndOf="@id/recyclerViewOrders"
+        app:layout_constraintStart_toStartOf="@id/recyclerViewOrders"
+        app:layout_constraintTop_toTopOf="@id/recyclerViewOrders" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

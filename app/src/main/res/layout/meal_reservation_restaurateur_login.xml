@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/main"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/prussian_blue">
+
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/toolbarRestaurateurLogin"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="@color/prussian_blue"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <TextView
+        android:id="@+id/textViewLoginTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Mode restaurateur"
+        android:textColor="@color/amber_honey"
+        android:textSize="22sp"
+        android:textStyle="bold"
+        app:layout_constraintBottom_toBottomOf="@+id/toolbarRestaurateurLogin"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="@+id/toolbarRestaurateurLogin" />
+
+    <TextView
+        android:id="@+id/textViewLoginDesc"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="24dp"
+        android:layout_marginTop="18dp"
+        android:layout_marginEnd="24dp"
+        android:text="Acces reserve au personnel. Saisissez votre identifiant et votre mot de passe."
+        android:textAlignment="center"
+        android:textColor="@color/amber_honey"
+        android:textSize="14sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/toolbarRestaurateurLogin" />
+
+    <LinearLayout
+        android:id="@+id/loginCard"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="24dp"
+        android:layout_marginTop="24dp"
+        android:layout_marginEnd="24dp"
+        android:background="#1AFFFFFF"
+        android:orientation="vertical"
+        android:padding="16dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/textViewLoginDesc">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Identifiant"
+            android:textColor="@color/amber_honey"
+            android:textSize="15sp" />
+
+        <EditText
+            android:id="@+id/editTextRestaurateurUsername"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginTop="8dp"
+            android:autofillHints="username"
+            android:backgroundTint="@color/amber_honey"
+            android:hint="admin_asso"
+            android:importantForAutofill="yes"
+            android:inputType="text"
+            android:textColor="@color/white"
+            android:textColorHint="#66FFFFFF" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:text="Mot de passe"
+            android:textColor="@color/amber_honey"
+            android:textSize="15sp" />
+
+        <EditText
+            android:id="@+id/editTextRestaurateurPassword"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginTop="8dp"
+            android:autofillHints="password"
+            android:backgroundTint="@color/amber_honey"
+            android:hint="********"
+            android:importantForAutofill="yes"
+            android:inputType="textPassword"
+            android:textColor="@color/white"
+            android:textColorHint="#66FFFFFF" />
+
+        <TextView
+            android:id="@+id/textViewAttempts"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:text="Tentatives restantes: 3"
+            android:textColor="@color/white"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/textViewLockInfo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="Apres 3 echecs, verrouillage temporaire de 30 secondes."
+            android:textColor="@color/amber_honey"
+            android:textSize="12sp" />
+
+        <Button
+            android:id="@+id/btnRestaurateurLogin"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:layout_marginTop="16dp"
+            android:backgroundTint="#333333"
+            android:text="Se connecter"
+            android:textAllCaps="false"
+            android:textColor="@color/white"
+            android:textSize="16sp" />
+
+    </LinearLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>
+

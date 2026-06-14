@@ -1,0 +1,55 @@
+<resources>
+    <string name="app_name">IMC App</string> //App name
+    <string name="saisie1">Saisir votre prénom</string> //To delete when possible
+    <string name="textBox1">Votre Prenom</string>   //To delete when possible
+
+    //Connection page
+    <string name="title_page_connect">IMC</string>  //Title of the connection page
+    <string name="description_page_connect">Page de Connexion - IMC</string>    //Description of the connection page
+    <string name="name_connect">Prénom :</string> //Name indicator of the connect page
+    <string name="project_info_connect">Projet ANDROID - IMC 2025-26</string>   //App name and version
+    <string name="Calculate">Calculer</string>  //Calculate Buttun of the connect page
+    <string name="welcome_message_page_connect">Bonjour %1$s</string>   //Welcome message to the user
+    <string name="last_imc_message">Votre dernier IMC était de %1$.1f</string>  //Last IMC that was calculated
+    <string name="recalculate_prompt">Voulez vous le recalculer ?</string>  //Message to ask the user if he want to recalculate his IMC
+    <string name="applicant_identification">Applicant Identification</string>   //Button to access applicant identification page
+    <string name="meal_reservation">Meal Reservation</string>   //Meal reservation feature
+    <string name="meal_reservation_applicant_desc">Please identify yourself to access meal reservation</string>   //Description of applicant identification
+    <string name="meal_reservation_first_name">First Name</string>   //First name field
+    <string name="meal_reservation_last_name">Last Name</string>   //Last name field
+    <string name="meal_reservation_email">Email</string>   //Email field
+    <string name="meal_reservation_submit">Submit</string>   //Submit button
+
+    //Calculation page
+    <string name="title_page_calcul">IMC</string>   //Title of the calculation page
+    <string name="gender_info_page_calcul">Genre : </string>    //Gender title
+    <string name="birth_date_page_calcul">Date de Naissance :</string>  //User's birthday date
+    <string name="weight_page_calcul">Poids : </string> //User's weight
+    <string name="height_page_calcul">Taille : </string>    //User's height
+    <string name="unit_meter_page_calcul">Mètre</string>    //Height's unit -> meter
+    <string name="unit_centimeter_page_calcul">Centimètre</string>  //Height's unit -> centimeter
+    <string name="view_page_calcul">Affichage</string>  //View buttun to show result
+    <string name="result_title_page_calcul">Résultat:</string>    //Title of the result section
+    <string name="result_imc_male_page_calcul">Monsieur votre IMC est de %1$.1f</string>    //Response for male users
+    <string name="result_imc_female_page_calcul">Madame votre IMC est de %1$.1f</string>    //Response for female users
+    <string name="age_category_page_calcul">Pour votre catégorie d âge (%1$d à %2$d ans)</string>  //User's age category
+    <string name="imc_category_page_calcul">vous êtes dans la catégorie %s </string>    //User's IMC category
+    <string name="Calculate_btn_page_calcul">Calculer</string>    //Calculate Buttun text
+    <string name="RAZ_btn_page_calcul">RAZ</string>    //RAZ Buttun text
+    <string name="default_result_message">Vous devez cliquer sur le bouton \'Calculer\' pour obtenir un résultat</string>  //Default result message
+    <string name="simple_imc_result">Votre IMC est de %1$.1f</string>  //Simple IMC result without details
+
+    <!-- Client Login/Signup Strings -->
+    <string name="client_login_title">Connexion client</string>
+    <string name="client_login_desc">Connectez-vous pour retrouver vos informations et continuer votre reservation.</string>
+    <string name="client_login_email_label">Adresse e-mail</string>
+    <string name="client_login_email_hint">nom@domaine.fr</string>
+    <string name="client_login_password_label">Mot de passe</string>
+    <string name="client_login_password_hint">Votre mot de passe</string>
+    <string name="client_login_cta">Se connecter</string>
+    <string name="client_go_signup_cta">Creer un compte</string>
+    <string name="client_signup_title">Creation de compte client</string>
+    <string name="client_signup_desc">Creez votre compte pour reserver vos repas d evenement.</string>
+    <string name="client_signup_required_fields">* Champs obligatoires</string>
+    <string name="client_signup_cta">Creer mon compte</string>
+</resources>
