@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/local_store.dart';
 import '../theme/app_colors.dart';
 import '../widgets/common.dart';
-import 'applicant_date_screen.dart';
+import 'applicant_home_screen.dart';
 import 'applicant_identification_screen.dart';
 import 'restaurateur_login_screen.dart';
 
@@ -69,7 +69,7 @@ class _ApplicantLoginScreenState extends State<ApplicantLoginScreen> {
     await MealReservationLocalStore.setCurrentAccountEmail(email);
     if (!mounted) return;
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const ApplicantDateScreen()),
+      MaterialPageRoute(builder: (_) => const ApplicantHomeScreen()),
     );
   }
 

@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/local_store.dart';
 import '../theme/app_colors.dart';
 import '../widgets/common.dart';
-import 'applicant_login_screen.dart';
+import 'applicant_home_screen.dart';
 import 'applicant_reservation_basket_screen.dart';
 
 /// Port of MealReservationApplicantNumActivity.kt (order confirmation /
@@ -178,7 +178,7 @@ class _ApplicantConfirmationScreenState
                         height: 52,
                         onPressed: () {
                           Navigator.of(context).pushAndRemoveUntil(
-                            MaterialPageRoute(builder: (_) => const ApplicantLoginScreen()),
+                            MaterialPageRoute(builder: (_) => const ApplicantHomeScreen()),
                             (route) => false,
                           );
                         },

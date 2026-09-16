@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/local_store.dart';
 import '../theme/app_colors.dart';
 import '../widgets/common.dart';
-import 'applicant_date_screen.dart';
+import 'applicant_home_screen.dart';
 
 final RegExp _emailRegex = RegExp(r'^[\w.+-]+@[\w-]+\.[a-zA-Z]{2,}$');
 final RegExp _phoneRegex = RegExp(r'^0\d{9}$');
@@ -94,7 +94,7 @@ class _ApplicantIdentificationScreenState
       const SnackBar(content: Text('Compte enregistre')),
     );
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const ApplicantDateScreen()),
+      MaterialPageRoute(builder: (_) => const ApplicantHomeScreen()),
     );
   }
 

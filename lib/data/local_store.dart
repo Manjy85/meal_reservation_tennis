@@ -100,6 +100,74 @@ class OrderHistoryEntry {
       );
 }
 
+/// A date + set of services (Midi/Soir) opened for reservation by the
+/// restaurateur. The client home screen only lets people book against
+/// these, it can't pick an arbitrary date.
+class AvailableSlot {
+  final String dateKey; // yyyyMMdd, used as the unique id and sort key
+  final String date; // dd/MM/yyyy, for display and for order records
+  final List<String> services; // subset of ['Midi', 'Soir']
+
+  const AvailableSlot({
+    required this.dateKey,
+    required this.date,
+    required this.services,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'dateKey': dateKey,
+        'date': date,
+        'services': services,
+      };
+
+  factory AvailableSlot.fromJson(Map<String, dynamic> json) => AvailableSlot(
+        dateKey: json['dateKey'] as String? ?? '',
+        date: json['date'] as String? ?? '',
+        services: (json['services'] as List<dynamic>? ?? const [])
+            .map((e) => e as String)
+            .toList(),
+      );
+}
+
+/// A menu item the restaurateur configured (name/description/price and
+/// whether it's currently offered). The client catalogue only shows the
+/// enabled ones.
+class Product {
+  final String id;
+  final String name;
+  final String description;
+  final double unitPrice;
+  final bool enabled;
+  final String category; // "famille" - free text, empty = uncategorized
+
+  const Product({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.unitPrice,
+    required this.enabled,
+    this.category = '',
+  });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'description': description,
+        'unitPrice': unitPrice,
+        'enabled': enabled,
+        'category': category,
+      };
+
+  factory Product.fromJson(Map<String, dynamic> json) => Product(
+        id: json['id'] as String? ?? '',
+        name: json['name'] as String? ?? '',
+        description: json['description'] as String? ?? '',
+        unitPrice: (json['unitPrice'] as num?)?.toDouble() ?? 0.0,
+        enabled: json['enabled'] as bool? ?? true,
+        category: json['category'] as String? ?? '',
+      );
+}
+
 class MealReservationLocalStore {
   MealReservationLocalStore._();
 
@@ -108,6 +176,8 @@ class MealReservationLocalStore {
   static const _keyLastOrderDay = 'last_order_day';
   static const _keyLastOrderCount = 'last_order_count';
   static const _keyOrdersHistory = 'orders_history';
+  static const _keyAvailableSlots = 'available_slots';
+  static const _keyProducts = 'products';
 
   static String _todayCompact() {
     final now = DateTime.now();
@@ -277,5 +347,130 @@ class MealReservationLocalStore {
       }
     }
     await prefs.setString(_keyOrdersHistory, jsonEncode(history));
+  }
+
+  static Future<List<AvailableSlot>> getAvailableSlots() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_keyAvailableSlots);
+    if (raw == null || raw.trim().isEmpty) return [];
+    List<dynamic> decoded;
+    try {
+      decoded = jsonDecode(raw) as List<dynamic>;
+    } catch (_) {
+      return [];
+    }
+    final slots = decoded
+        .map((e) => AvailableSlot.fromJson(e as Map<String, dynamic>))
+        .toList();
+    slots.sort((a, b) => a.dateKey.compareTo(b.dateKey));
+    return slots;
+  }
+
+  /// Upserts by dateKey: saving a date that already has a configured slot
+  /// replaces its services.
+  static Future<void> saveAvailableSlot(AvailableSlot slot) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_keyAvailableSlots);
+    List<dynamic> slots = [];
+    if (raw != null && raw.trim().isNotEmpty) {
+      try {
+        slots = jsonDecode(raw) as List<dynamic>;
+      } catch (_) {
+        slots = [];
+      }
+    }
+
+    var replaced = false;
+    for (var i = 0; i < slots.length; i++) {
+      if ((slots[i] as Map<String, dynamic>)['dateKey'] == slot.dateKey) {
+        slots[i] = slot.toJson();
+        replaced = true;
+        break;
+      }
+    }
+    if (!replaced) slots.add(slot.toJson());
+
+    await prefs.setString(_keyAvailableSlots, jsonEncode(slots));
+  }
+
+  static Future<void> deleteAvailableSlot(String dateKey) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_keyAvailableSlots);
+    if (raw == null || raw.trim().isEmpty) return;
+    List<dynamic> slots;
+    try {
+      slots = jsonDecode(raw) as List<dynamic>;
+    } catch (_) {
+      return;
+    }
+    slots.removeWhere((e) => (e as Map<String, dynamic>)['dateKey'] == dateKey);
+    await prefs.setString(_keyAvailableSlots, jsonEncode(slots));
+  }
+
+  static Future<List<Product>> getProducts() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_keyProducts);
+    if (raw == null || raw.trim().isEmpty) return [];
+    List<dynamic> decoded;
+    try {
+      decoded = jsonDecode(raw) as List<dynamic>;
+    } catch (_) {
+      return [];
+    }
+    final products =
+        decoded.map((e) => Product.fromJson(e as Map<String, dynamic>)).toList();
+    products.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    return products;
+  }
+
+  /// Upserts by id: an empty id creates a new product with a generated one.
+  static Future<void> saveProduct(Product product) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_keyProducts);
+    List<dynamic> products = [];
+    if (raw != null && raw.trim().isNotEmpty) {
+      try {
+        products = jsonDecode(raw) as List<dynamic>;
+      } catch (_) {
+        products = [];
+      }
+    }
+
+    final toSave = product.id.isEmpty
+        ? Product(
+            id: DateTime.now().microsecondsSinceEpoch.toString(),
+            name: product.name,
+            description: product.description,
+            unitPrice: product.unitPrice,
+            enabled: product.enabled,
+            category: product.category,
+          )
+        : product;
+
+    var replaced = false;
+    for (var i = 0; i < products.length; i++) {
+      if ((products[i] as Map<String, dynamic>)['id'] == toSave.id) {
+        products[i] = toSave.toJson();
+        replaced = true;
+        break;
+      }
+    }
+    if (!replaced) products.add(toSave.toJson());
+
+    await prefs.setString(_keyProducts, jsonEncode(products));
+  }
+
+  static Future<void> deleteProduct(String id) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_keyProducts);
+    if (raw == null || raw.trim().isEmpty) return;
+    List<dynamic> products;
+    try {
+      products = jsonDecode(raw) as List<dynamic>;
+    } catch (_) {
+      return;
+    }
+    products.removeWhere((e) => (e as Map<String, dynamic>)['id'] == id);
+    await prefs.setString(_keyProducts, jsonEncode(products));
   }
 }

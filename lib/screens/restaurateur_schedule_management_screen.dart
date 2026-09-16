@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 
+import '../data/local_store.dart';
 import '../theme/app_colors.dart';
+import '../widgets/common.dart';
 import 'applicant_login_screen.dart';
 
-/// Port of MealReservationRestaurateurScheduleManagementActivity.kt.
-/// The original activity only wires the logout button: the date picker,
-/// the two service checkboxes, the "Enregistrer la plage" button and the
-/// event-slots RecyclerView are all inert in the real app (no click
-/// listener, no adapter). Kept as static/local-only UI here for fidelity.
+/// Port of MealReservationRestaurateurScheduleManagementActivity.kt, now
+/// wired to real persistence: this is where the restaurateur decides which
+/// dates/services clients are allowed to book (read by ApplicantHomeScreen).
 class RestaurateurScheduleManagementScreen extends StatefulWidget {
   const RestaurateurScheduleManagementScreen({super.key});
 
@@ -21,6 +21,76 @@ class _RestaurateurScheduleManagementScreenState
   DateTime _selectedDate = DateTime.now();
   bool _midi = false;
   bool _soir = false;
+  bool _saving = false;
+
+  List<AvailableSlot> _slots = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSlots();
+  }
+
+  Future<void> _loadSlots() async {
+    setState(() => _loading = true);
+    final slots = await MealReservationLocalStore.getAvailableSlots();
+    if (!mounted) return;
+    setState(() {
+      _slots = slots;
+      _loading = false;
+    });
+  }
+
+  String _dateKeyOf(DateTime d) {
+    final y = d.year.toString().padLeft(4, '0');
+    final m = d.month.toString().padLeft(2, '0');
+    final day = d.day.toString().padLeft(2, '0');
+    return '$y$m$day';
+  }
+
+  String _formattedDateOf(DateTime d) {
+    final day = d.day.toString().padLeft(2, '0');
+    final m = d.month.toString().padLeft(2, '0');
+    return '$day/$m/${d.year}';
+  }
+
+  Future<void> _saveSlot() async {
+    final services = [
+      if (_midi) 'Midi',
+      if (_soir) 'Soir',
+    ];
+    if (services.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Selectionne au moins un service')),
+      );
+      return;
+    }
+
+    setState(() => _saving = true);
+    await MealReservationLocalStore.saveAvailableSlot(
+      AvailableSlot(
+        dateKey: _dateKeyOf(_selectedDate),
+        date: _formattedDateOf(_selectedDate),
+        services: services,
+      ),
+    );
+    if (!mounted) return;
+    setState(() {
+      _saving = false;
+      _midi = false;
+      _soir = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Plage enregistree')),
+    );
+    _loadSlots();
+  }
+
+  Future<void> _deleteSlot(AvailableSlot slot) async {
+    await MealReservationLocalStore.deleteAvailableSlot(slot.dateKey);
+    _loadSlots();
+  }
 
   void _logout() {
     Navigator.of(context).pushAndRemoveUntil(
@@ -93,18 +163,10 @@ class _RestaurateurScheduleManagementScreenState
                     contentPadding: EdgeInsets.zero,
                   ),
                   const SizedBox(height: 4),
-                  SizedBox(
-                    width: double.infinity,
+                  AppPrimaryButton(
+                    label: _saving ? 'Enregistrement...' : 'Enregistrer la plage',
                     height: 48,
-                    child: ElevatedButton(
-                      onPressed: () {},
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.buttonDark,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                      child: const Text('Enregistrer la plage'),
-                    ),
+                    onPressed: _saving ? null : _saveSlot,
                   ),
                 ],
               ),
@@ -115,11 +177,58 @@ class _RestaurateurScheduleManagementScreenState
               style: TextStyle(color: AppColors.amberHoney, fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            Container(
-              height: 220,
-              alignment: Alignment.center,
-              child: const Text('Aucune date configuree', style: TextStyle(color: Colors.white54)),
-            ),
+            if (_loading)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(child: CircularProgressIndicator(color: AppColors.amberHoney)),
+              )
+            else if (_slots.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(
+                  child: Text('Aucune date configuree', style: TextStyle(color: Colors.white54)),
+                ),
+              )
+            else
+              ..._slots.map(
+                (slot) => Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.cardOverlay,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              slot.date,
+                              style: const TextStyle(
+                                color: AppColors.amberHoney,
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              slot.services.join(' / '),
+                              style: const TextStyle(color: Colors.white, fontSize: 13),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline, color: AppColors.deleteRed),
+                        tooltip: 'Supprimer',
+                        onPressed: () => _deleteSlot(slot),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
           ],
         ),
       ),
