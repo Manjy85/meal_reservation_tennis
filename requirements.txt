@@ -1,0 +1,32 @@
+# Pre-requis systeme pour lancer ce projet Flutter
+#
+# Ceci n'est PAS un fichier de dependances pip (ce projet est en Dart/Flutter,
+# pas Python). Les dependances du code (packages Dart) sont dans pubspec.yaml
+# et s'installent avec `flutter pub get`. Ce fichier liste ce qu'il faut avoir
+# installe sur la machine avant de pouvoir lancer/tester l'app.
+
+## 1. SDK Flutter (obligatoire)
+sudo snap install flutter --classic
+flutter doctor          # verifie l'installation et indique ce qui manque encore
+
+## 2. Choisir au moins UNE cible de test
+
+# Option A - Telephone Android physique (le plus simple, recommande)
+#   - Activer le mode developpeur + le debogage USB sur le telephone
+#   - Brancher en USB
+#   - flutter devices     # verifie que le telephone est detecte
+#   - flutter run
+
+# Option B - Navigateur (web)
+sudo apt install chromium-browser    # ou: sudo snap install chromium
+#   - flutter run -d chrome
+
+# Option C - Emulateur Android (le plus complet, le plus lourd a installer)
+#   - Installer Android Studio: https://developer.android.com/studio
+#   - Depuis Android Studio: SDK Manager (installer un SDK) + Device Manager (creer un AVD)
+#   - flutter run
+
+## 3. Une fois les pre-requis installes, depuis la racine du projet :
+flutter create .        # genere android/, ios/, etc. sans toucher a lib/ ni pubspec.yaml
+flutter pub get         # installe les dependances Dart listees dans pubspec.yaml
+flutter run

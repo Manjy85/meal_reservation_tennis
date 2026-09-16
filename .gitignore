@@ -1,15 +1,15 @@
-# Gradle
-.gradle/
+.dart_tool/
+.packages
 build/
-**/build/
-
-# Android SDK local
-local.properties
-
-# Android Studio / IntelliJ
-.idea/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
 *.iml
-
-# OS
-.DS_Store
-Thumbs.db
+.idea/
+android/
+ios/
+macos/
+linux/
+windows/
+web/
