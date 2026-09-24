@@ -3,25 +3,21 @@ import 'package:flutter/material.dart';
 import '../data/store.dart';
 import '../theme/app_colors.dart';
 import '../widgets/common.dart';
-import 'restaurateur_login_screen.dart';
 import 'restaurateur_product_form_screen.dart';
 
 const _allTab = 'Tous';
 
-/// Port of MealReservationRestaurateurCatalogManagementActivity.kt,
-/// SumUp-style: "Mes articles" with a "+" to add an item and the products
-/// grouped into family tabs (plus "Tous"). Live Firestore stream, so the
-/// list and tabs update as soon as a product is saved or deleted.
+/// "Mes articles", SumUp-style: family tabs (plus "Tous"), product list and a
+/// floating "+" to add an item. Live Firestore stream, so the list and tabs
+/// update as soon as a product is saved or deleted.
 class RestaurateurCatalogManagementScreen extends StatefulWidget {
   const RestaurateurCatalogManagementScreen({super.key});
 
   @override
-  State<RestaurateurCatalogManagementScreen> createState() =>
-      _RestaurateurCatalogManagementScreenState();
+  State<RestaurateurCatalogManagementScreen> createState() => _RestaurateurCatalogManagementScreenState();
 }
 
-class _RestaurateurCatalogManagementScreenState
-    extends State<RestaurateurCatalogManagementScreen> {
+class _RestaurateurCatalogManagementScreenState extends State<RestaurateurCatalogManagementScreen> {
   late final Stream<List<Product>> _products = MealReservationStore.watchProducts();
 
   void _openForm({Product? product}) {
@@ -30,39 +26,33 @@ class _RestaurateurCatalogManagementScreenState
     );
   }
 
-  List<Widget> _actions() => [
-        IconButton(
-          icon: const Icon(Icons.add, color: AppColors.amberHoney),
-          tooltip: 'Ajouter un article',
-          onPressed: () => _openForm(),
-        ),
-        IconButton(
-          icon: const Icon(Icons.power_settings_new, color: AppColors.amberHoney),
-          tooltip: 'Se deconnecter',
-          onPressed: () => logoutRestaurateur(context),
-        ),
-      ];
-
   @override
   Widget build(BuildContext context) {
+    final fab = FloatingActionButton(
+      onPressed: () => _openForm(),
+      tooltip: 'Ajouter un article',
+      child: const Icon(Icons.add_rounded, size: 30),
+    );
+
     return StreamBuilder<List<Product>>(
       stream: _products,
       builder: (context, snapshot) {
         if (snapshot.hasError || !snapshot.hasData) {
           return Scaffold(
-            appBar: AppBar(title: const Text('Mes articles'), actions: _actions()),
+            appBar: AppBar(title: const Text('Mes articles')),
+            floatingActionButton: fab,
             body: snapshot.hasError ? AppErrorView(snapshot.error) : appLoader,
           );
         }
 
         final products = snapshot.data!;
-        final categories = products
+        final families = products
             .map((p) => p.category.trim())
             .where((c) => c.isNotEmpty)
             .toSet()
             .toList()
           ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-        final tabs = [_allTab, ...categories];
+        final tabs = [_allTab, ...families];
 
         return DefaultTabController(
           // A new set of families rebuilds the controller with the right length.
@@ -71,29 +61,25 @@ class _RestaurateurCatalogManagementScreenState
           child: Scaffold(
             appBar: AppBar(
               title: const Text('Mes articles'),
-              actions: _actions(),
               bottom: TabBar(
                 isScrollable: true,
-                indicatorColor: AppColors.amberHoney,
-                labelColor: AppColors.amberHoney,
-                unselectedLabelColor: Colors.white70,
-                tabs: tabs.map((t) => Tab(text: t)).toList(),
+                tabs: tabs.map((t) {
+                  final n = t == _allTab ? products.length : products.where((p) => p.category.trim() == t).length;
+                  return Tab(text: '$t  $n');
+                }).toList(),
               ),
             ),
-            body: SafeArea(
-              child: TabBarView(
-                children: tabs
-                    .map((tab) => _ProductList(
-                          products: tab == _allTab
-                              ? products
-                              : products.where((p) => p.category.trim() == tab).toList(),
-                          emptyMessage: tab == _allTab
-                              ? 'Aucun article. Appuie sur + pour en ajouter un.'
-                              : 'Aucun article dans cette famille.',
-                          onTapProduct: (p) => _openForm(product: p),
-                        ))
-                    .toList(),
-              ),
+            floatingActionButton: fab,
+            body: TabBarView(
+              children: tabs
+                  .map((tab) => _ProductList(
+                        products: tab == _allTab
+                            ? products
+                            : products.where((p) => p.category.trim() == tab).toList(),
+                        emptyAll: tab == _allTab,
+                        onTapProduct: (p) => _openForm(product: p),
+                      ))
+                  .toList(),
             ),
           ),
         );
@@ -104,74 +90,52 @@ class _RestaurateurCatalogManagementScreenState
 
 class _ProductList extends StatelessWidget {
   final List<Product> products;
-  final String emptyMessage;
+  final bool emptyAll;
   final ValueChanged<Product> onTapProduct;
 
-  const _ProductList({
-    required this.products,
-    required this.emptyMessage,
-    required this.onTapProduct,
-  });
+  const _ProductList({required this.products, required this.emptyAll, required this.onTapProduct});
 
   @override
   Widget build(BuildContext context) {
     if (products.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Text(
-            emptyMessage,
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.white54, fontSize: 14),
-          ),
-        ),
+      return AppEmptyState(
+        icon: Icons.inventory_2_outlined,
+        title: emptyAll ? 'Aucun article' : 'Aucun article dans cette famille',
+        message: emptyAll ? 'Appuie sur + pour créer ton premier article.' : null,
       );
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
       itemCount: products.length,
-      itemBuilder: (context, index) {
-        final product = products[index];
-        return InkWell(
-          onTap: () => onTapProduct(product),
-          child: AppSectionCard(
+      itemBuilder: (context, i) {
+        final p = products[i];
+        return Opacity(
+          opacity: p.enabled ? 1 : 0.55,
+          child: AppCard(
+            padding: const EdgeInsets.all(12),
+            margin: const EdgeInsets.only(bottom: 10),
+            onTap: () => onTapProduct(p),
             child: Row(
               children: [
+                CategoryAvatar(label: '${p.category} ${p.name}', size: 48),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Text(p.name, style: Theme.of(context).textTheme.titleMedium),
+                      const SizedBox(height: 2),
                       Text(
-                        product.name,
-                        style: const TextStyle(
-                          color: AppColors.amberHoney,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      if (product.description.isNotEmpty) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          product.description,
-                          style: const TextStyle(color: Colors.white, fontSize: 13),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                      const SizedBox(height: 4),
-                      Text(
-                        formatEur(product.unitPrice),
-                        style: const TextStyle(color: Colors.white, fontSize: 13),
+                        [if (p.category.isNotEmpty) p.category, if (!p.enabled) 'Masqué'].join(' · '),
+                        style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
                       ),
                     ],
                   ),
                 ),
-                if (!product.enabled)
-                  const Padding(
-                    padding: EdgeInsets.only(left: 8),
-                    child: Text('Inactif', style: TextStyle(color: Colors.white54, fontSize: 12)),
-                  ),
+                Text(formatEur(p.unitPrice), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                const SizedBox(width: 4),
+                const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
               ],
             ),
           ),

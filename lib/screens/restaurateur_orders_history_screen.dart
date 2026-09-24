@@ -5,15 +5,12 @@ import '../widgets/common.dart';
 import '../widgets/order_list_item.dart';
 import 'restaurateur_order_detail_screen.dart';
 
-/// Port of MealReservationRestaurateurOrdersHistoryActivity.kt: orders whose
-/// status is "Remise", as a live Firestore stream. No logout button here,
-/// matching the original layout.
+/// Orders already handed over (status "Remise"), most recent first, live.
 class RestaurateurOrdersHistoryScreen extends StatefulWidget {
   const RestaurateurOrdersHistoryScreen({super.key});
 
   @override
-  State<RestaurateurOrdersHistoryScreen> createState() =>
-      _RestaurateurOrdersHistoryScreenState();
+  State<RestaurateurOrdersHistoryScreen> createState() => _RestaurateurOrdersHistoryScreenState();
 }
 
 class _RestaurateurOrdersHistoryScreenState extends State<RestaurateurOrdersHistoryScreen> {
@@ -23,40 +20,32 @@ class _RestaurateurOrdersHistoryScreenState extends State<RestaurateurOrdersHist
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Historique')),
-      body: SafeArea(
-        child: StreamBuilder<List<OrderHistoryEntry>>(
-          stream: _orders,
-          builder: (context, snapshot) {
-            if (snapshot.hasError) return AppErrorView(snapshot.error);
-            if (!snapshot.hasData) return appLoader;
-            final orders = snapshot.data!.where((o) => o.status == 'Remise').toList();
-            if (orders.isEmpty) {
-              return const Center(
-                child: Text(
-                  'Aucune commande remise',
-                  style: TextStyle(color: Colors.white, fontSize: 16),
-                ),
-              );
-            }
-            return ListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
-              itemCount: orders.length,
-              itemBuilder: (context, index) {
-                final order = orders[index];
-                return OrderListItem(
-                  order: order,
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => RestaurateurOrderDetailScreen(
-                        reservationNumber: order.reservationNumber,
-                      ),
-                    ),
-                  ),
-                );
-              },
+      body: StreamBuilder<List<OrderHistoryEntry>>(
+        stream: _orders,
+        builder: (context, snapshot) {
+          if (snapshot.hasError) return AppErrorView(snapshot.error);
+          if (!snapshot.hasData) return appLoader;
+          final orders = snapshot.data!.where((o) => o.status == 'Remise').toList().reversed.toList();
+          if (orders.isEmpty) {
+            return const AppEmptyState(
+              icon: Icons.history_rounded,
+              title: 'Aucune commande remise',
+              message: 'Les commandes passées au statut « Remise » sont archivées ici.',
             );
-          },
-        ),
+          }
+          return ListView.builder(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+            itemCount: orders.length,
+            itemBuilder: (context, i) => OrderListItem(
+              order: orders[i],
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => RestaurateurOrderDetailScreen(reservationNumber: orders[i].reservationNumber),
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }

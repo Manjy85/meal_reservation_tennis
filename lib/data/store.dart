@@ -9,6 +9,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 /// Collections: users/{uid}, admins/{uid}, products/{id}, slots/{dateKey},
 /// orders/{reservationNumber}, counters/{yyyyMMdd}.
 
+/// Order lifecycle, in order. These exact strings are stored in Firestore
+/// (and 'En attente' is checked by firestore.rules) - display labels with
+/// accents live in the UI layer.
+const orderStatuses = ['En attente', 'En preparation', 'Prete', 'Remise'];
+
 class Account {
   final String firstName;
   final String lastName;

@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../data/store.dart';
-import '../theme/app_colors.dart';
 import '../widgets/common.dart';
 import 'restaurateur_dashboard_screen.dart';
 
-/// Shared "Se deconnecter" action for every restaurateur screen.
+/// Shared "Se déconnecter" action for every restaurateur screen.
 Future<void> logoutRestaurateur(BuildContext context) async {
   await MealReservationStore.signOut();
   if (!context.mounted) return;
@@ -63,7 +62,7 @@ class _RestaurateurLoginScreenState extends State<RestaurateurLoginScreen> {
       error = e.message;
     } catch (e) {
       await MealReservationStore.signOut();
-      error = 'Erreur de connexion: $e';
+      error = 'Erreur de connexion : $e';
     }
 
     if (!mounted) return;
@@ -83,51 +82,48 @@ class _RestaurateurLoginScreenState extends State<RestaurateurLoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Mode restaurateur')),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 18, 24, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text(
-                'Acces reserve au personnel. Connectez-vous avec votre compte restaurateur.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.amberHoney, fontSize: 14),
-              ),
-              const SizedBox(height: 24),
-              AppSectionCard(
-                padding: const EdgeInsets.all(16),
-                margin: EdgeInsets.zero,
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 440),
+              child: AutofillGroup(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Text('Adresse e-mail', style: TextStyle(color: AppColors.amberHoney, fontSize: 15)),
-                    const SizedBox(height: 8),
+                    const AppBrandHeader(
+                      icon: Icons.storefront_rounded,
+                      badge: 'ESPACE RESTAURATEUR',
+                      title: 'Connexion',
+                      subtitle: 'Gère ta carte, tes dates de service et les commandes en temps réel.',
+                    ),
+                    const SizedBox(height: 32),
                     AppTextField(
                       controller: _emailController,
-                      hint: 'nom@domaine.fr',
+                      label: 'Adresse e-mail',
+                      icon: Icons.mail_outline_rounded,
                       keyboardType: TextInputType.emailAddress,
+                      textInputAction: TextInputAction.next,
+                      autofillHints: const [AutofillHints.email],
                     ),
                     const SizedBox(height: 14),
-                    const Text('Mot de passe', style: TextStyle(color: AppColors.amberHoney, fontSize: 15)),
-                    const SizedBox(height: 8),
                     AppTextField(
                       controller: _passwordController,
-                      hint: '********',
+                      label: 'Mot de passe',
+                      icon: Icons.lock_outline_rounded,
                       obscure: true,
+                      textInputAction: TextInputAction.done,
+                      autofillHints: const [AutofillHints.password],
+                      onSubmitted: (_) => _submit(),
                       errorText: _error,
                     ),
-                    const SizedBox(height: 16),
-                    AppPrimaryButton(
-                      label: _submitting ? 'Connexion...' : 'Se connecter',
-                      onPressed: _submitting ? null : _submit,
-                      height: 52,
-                    ),
+                    const SizedBox(height: 24),
+                    AppPrimaryButton(label: 'Se connecter', loading: _submitting, onPressed: _submit),
                   ],
                 ),
               ),
-            ],
+            ),
           ),
         ),
       ),

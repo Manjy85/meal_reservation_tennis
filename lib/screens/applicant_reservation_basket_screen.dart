@@ -7,12 +7,16 @@ import 'applicant_confirmation_screen.dart';
 class BasketItemData {
   final String name;
   final double unitPrice;
+  final String category;
   int qty;
 
-  BasketItemData({required this.name, required this.unitPrice, required this.qty});
+  BasketItemData({required this.name, required this.unitPrice, required this.qty, this.category = ''});
+
+  BasketItemData copy() => BasketItemData(name: name, unitPrice: unitPrice, qty: qty, category: category);
 }
 
-/// Port of MealReservationApplicantReservationBasketActivity.kt
+/// Checkout-style basket: editable lines, order summary, and a sticky
+/// "Valider la commande" button showing the total.
 class ApplicantReservationBasketScreen extends StatefulWidget {
   final String selectedDate;
   final String selectedService;
@@ -26,41 +30,22 @@ class ApplicantReservationBasketScreen extends StatefulWidget {
   });
 
   @override
-  State<ApplicantReservationBasketScreen> createState() =>
-      _ApplicantReservationBasketScreenState();
+  State<ApplicantReservationBasketScreen> createState() => _ApplicantReservationBasketScreenState();
 }
 
-class _ApplicantReservationBasketScreenState
-    extends State<ApplicantReservationBasketScreen> {
-  late List<BasketItemData> _basketItems;
+class _ApplicantReservationBasketScreenState extends State<ApplicantReservationBasketScreen> {
+  late final List<BasketItemData> _items = widget.initialItems.map((i) => i.copy()).toList();
 
-  @override
-  void initState() {
-    super.initState();
-    _basketItems = widget.initialItems.map((i) {
-      return BasketItemData(name: i.name, unitPrice: i.unitPrice, qty: i.qty);
-    }).toList();
-  }
-
-  double get _total =>
-      _basketItems.fold(0.0, (sum, i) => sum + i.qty * i.unitPrice);
+  double get _total => _items.fold(0.0, (acc, i) => acc + i.qty * i.unitPrice);
+  int get _count => _items.fold(0, (n, i) => n + i.qty);
 
   void _validate() {
-    if (_basketItems.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ton panier est vide')),
-      );
-      return;
-    }
-
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => ApplicantConfirmationScreen(
           selectedDate: widget.selectedDate,
           selectedService: widget.selectedService,
-          items: _basketItems
-              .map((i) => BasketItemData(name: i.name, unitPrice: i.unitPrice, qty: i.qty))
-              .toList(),
+          items: _items.map((i) => i.copy()).toList(),
         ),
       ),
     );
@@ -68,130 +53,150 @@ class _ApplicantReservationBasketScreenState
 
   @override
   Widget build(BuildContext context) {
-    final hasItems = _basketItems.isNotEmpty;
-
+    final isSoir = widget.selectedService == 'Soir';
     return Scaffold(
-      appBar: AppBar(title: const Text('Panier et recapitulatif')),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-              child: AppSectionCard(
-                margin: EdgeInsets.zero,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Date choisie: ${widget.selectedDate.isEmpty ? '-' : widget.selectedDate}',
-                      style: const TextStyle(
-                        color: AppColors.amberHoney,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Service: ${widget.selectedService.isEmpty ? '-' : widget.selectedService}',
-                      style: const TextStyle(color: Colors.white, fontSize: 15),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            Expanded(
-              child: !hasItems
-                  ? const Center(
-                      child: Text(
-                        'Aucun produit selectionne',
-                        style: TextStyle(color: Colors.white, fontSize: 16),
-                      ),
-                    )
-                  : ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-                      itemCount: _basketItems.length,
-                      itemBuilder: (context, index) {
-                        final item = _basketItems[index];
-                        return AppSectionCard(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                item.name,
-                                style: const TextStyle(
-                                  color: AppColors.amberHoney,
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Prix unitaire: ${formatEur(item.unitPrice)}',
-                                style: const TextStyle(color: Colors.white, fontSize: 14),
-                              ),
-                              const SizedBox(height: 10),
-                              Row(
-                                children: [
-                                  AppQtyStepper(
-                                    qty: item.qty,
-                                    onMinus: () => setState(() {
-                                      if (item.qty > 1) {
-                                        item.qty -= 1;
-                                      } else {
-                                        _basketItems.remove(item);
-                                      }
-                                    }),
-                                    onPlus: () => setState(() => item.qty += 1),
-                                  ),
-                                  const Spacer(),
-                                  ElevatedButton(
-                                    onPressed: () => setState(() => _basketItems.remove(item)),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: AppColors.deleteRed,
-                                      foregroundColor: Colors.white,
-                                    ),
-                                    child: const Text('Supprimer'),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Sous-total: ${formatEur(item.qty * item.unitPrice)}',
-                                style: const TextStyle(
-                                  color: AppColors.amberHoney,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-            ),
-            AppFooterBar(
+      appBar: AppBar(title: const Text('Mon panier')),
+      body: _items.isEmpty
+          ? Center(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    'Total general: ${formatEur(_total)}',
-                    style: const TextStyle(
-                      color: AppColors.amberHoney,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  const AppEmptyState(
+                    icon: Icons.shopping_bag_outlined,
+                    title: 'Ton panier est vide',
+                    message: 'Ajoute des produits depuis la carte.',
                   ),
-                  const SizedBox(height: 12),
-                  AppPrimaryButton(
-                    label: 'Valider la commande',
-                    onPressed: hasItems ? _validate : null,
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Retour à la carte'),
                   ),
                 ],
               ),
+            )
+          : ListView(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+              children: [
+                AppCard(
+                  child: Row(
+                    children: [
+                      DateBadge(widget.selectedDate),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(formatLongDate(widget.selectedDate), style: Theme.of(context).textTheme.titleMedium),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Icon(
+                                  isSoir ? Icons.nightlight_round : Icons.wb_sunny_rounded,
+                                  size: 16,
+                                  color: AppColors.amber,
+                                ),
+                                const SizedBox(width: 6),
+                                Text('Service du ${widget.selectedService.toLowerCase()}',
+                                    style: const TextStyle(color: AppColors.textSecondary)),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                AppSectionTitle('Articles ($_count)'),
+                ..._items.map((item) => _BasketLine(
+                      item: item,
+                      onMinus: () => setState(() {
+                        if (item.qty > 1) {
+                          item.qty -= 1;
+                        } else {
+                          _items.remove(item);
+                        }
+                      }),
+                      onPlus: () => setState(() => item.qty += 1),
+                    )),
+                const SizedBox(height: 8),
+                AppCard(
+                  child: Column(
+                    children: [
+                      _SummaryRow(label: 'Sous-total', value: formatEur(_total)),
+                      const SizedBox(height: 8),
+                      const _SummaryRow(label: 'Paiement', value: 'Sur place'),
+                      const Divider(height: 24),
+                      _SummaryRow(label: 'Total', value: formatEur(_total), strong: true),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+      bottomNavigationBar: _items.isEmpty
+          ? null
+          : AppBottomBar(
+              child: AppPrimaryButton(
+                label: 'Valider la commande · ${formatEur(_total)}',
+                onPressed: _validate,
+              ),
+            ),
+    );
+  }
+}
+
+class _BasketLine extends StatelessWidget {
+  final BasketItemData item;
+  final VoidCallback onMinus;
+  final VoidCallback onPlus;
+
+  const _BasketLine({required this.item, required this.onMinus, required this.onPlus});
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          CategoryAvatar(label: '${item.category} ${item.name}', size: 44),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(item.name, style: const TextStyle(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 2),
+                Text(
+                  formatEur(item.qty * item.unitPrice),
+                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+          QtyStepper(qty: item.qty, onMinus: onMinus, onPlus: onPlus),
+        ],
       ),
+    );
+  }
+}
+
+class _SummaryRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool strong;
+
+  const _SummaryRow({required this.label, required this.value, this.strong = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final style = strong
+        ? const TextStyle(fontWeight: FontWeight.w800, fontSize: 17)
+        : const TextStyle(color: AppColors.textSecondary);
+    return Row(
+      children: [
+        Expanded(child: Text(label, style: style)),
+        Text(value, style: strong ? style.copyWith(color: AppColors.amber) : style),
+      ],
     );
   }
 }

@@ -1,24 +1,21 @@
 import 'package:flutter/material.dart';
 
 import '../data/store.dart';
-import '../theme/app_colors.dart';
 import '../widgets/common.dart';
 import 'applicant_home_screen.dart';
 
 final RegExp _emailRegex = RegExp(r'^[\w.+-]+@[\w-]+\.[a-zA-Z]{2,}$');
 final RegExp _phoneRegex = RegExp(r'^0\d{9}$');
 
-/// Port of MealReservationApplicantIdentificationActivity.kt (signup).
+/// Client signup (Firebase account + profile in users/{uid}).
 class ApplicantIdentificationScreen extends StatefulWidget {
   const ApplicantIdentificationScreen({super.key});
 
   @override
-  State<ApplicantIdentificationScreen> createState() =>
-      _ApplicantIdentificationScreenState();
+  State<ApplicantIdentificationScreen> createState() => _ApplicantIdentificationScreenState();
 }
 
-class _ApplicantIdentificationScreenState
-    extends State<ApplicantIdentificationScreen> {
+class _ApplicantIdentificationScreenState extends State<ApplicantIdentificationScreen> {
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   final _emailController = TextEditingController();
@@ -50,31 +47,13 @@ class _ApplicantIdentificationScreenState
     final password = _passwordController.text.trim();
 
     setState(() {
-      _firstNameError = null;
-      _lastNameError = null;
-      _emailError = null;
-      _phoneError = null;
-      _passwordError = null;
+      _firstNameError = firstName.isEmpty ? 'Prénom requis' : null;
+      _lastNameError = lastName.isEmpty ? 'Nom requis' : null;
+      _emailError = _emailRegex.hasMatch(email) ? null : 'Adresse e-mail invalide';
+      _phoneError = _phoneRegex.hasMatch(phone) ? null : '10 chiffres, ex. 0612345678';
+      _passwordError = password.length < 6 ? '6 caractères minimum' : null;
     });
-
-    if (firstName.isEmpty) {
-      setState(() => _firstNameError = 'Prenom requis');
-      return;
-    }
-    if (lastName.isEmpty) {
-      setState(() => _lastNameError = 'Nom requis');
-      return;
-    }
-    if (!_emailRegex.hasMatch(email)) {
-      setState(() => _emailError = 'Adresse e-mail invalide');
-      return;
-    }
-    if (!_phoneRegex.hasMatch(phone)) {
-      setState(() => _phoneError = 'Numero invalide (10 chiffres, ex. 0612345678)');
-      return;
-    }
-    if (password.length < 6) {
-      setState(() => _passwordError = 'Mot de passe: 6 caracteres minimum');
+    if ([_firstNameError, _lastNameError, _emailError, _phoneError, _passwordError].any((e) => e != null)) {
       return;
     }
 
@@ -91,14 +70,18 @@ class _ApplicantIdentificationScreenState
       if (!mounted) return;
       setState(() {
         _submitting = false;
-        _emailError = e.message;
+        if (e.message.startsWith('Mot de passe')) {
+          _passwordError = e.message;
+        } else {
+          _emailError = e.message;
+        }
       });
       return;
     }
     if (!mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Compte enregistre')),
+      SnackBar(content: Text('Bienvenue $firstName, ton compte est créé !')),
     );
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const ApplicantHomeScreen()),
@@ -109,78 +92,93 @@ class _ApplicantIdentificationScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Creation de compte client')),
+      appBar: AppBar(),
       body: SafeArea(
-        child: Column(
-          children: [
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 30, vertical: 16),
-              child: Text(
-                'Creez votre compte pour reserver vos repas d evenement.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.amberHoney, fontSize: 16),
-              ),
-            ),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(30, 0, 30, 24),
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 440),
+              child: AutofillGroup(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Text(
-                      '* Champs obligatoires',
-                      style: TextStyle(color: AppColors.amberHoney, fontSize: 14),
+                    const AppBrandHeader(
+                      icon: Icons.person_add_alt_1_rounded,
+                      title: 'Créer un compte',
+                      subtitle: 'Quelques infos pour réserver tes repas lors des événements du club.',
                     ),
-                    const SizedBox(height: 12),
-                    const AppFieldLabel('Prenom *'),
-                    AppTextField(
-                      controller: _firstNameController,
-                      hint: 'Ex. Jean',
-                      errorText: _firstNameError,
+                    const SizedBox(height: 28),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: AppTextField(
+                            controller: _firstNameController,
+                            label: 'Prénom',
+                            textInputAction: TextInputAction.next,
+                            autofillHints: const [AutofillHints.givenName],
+                            errorText: _firstNameError,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: AppTextField(
+                            controller: _lastNameController,
+                            label: 'Nom',
+                            textInputAction: TextInputAction.next,
+                            autofillHints: const [AutofillHints.familyName],
+                            errorText: _lastNameError,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 20),
-                    const AppFieldLabel('Nom *'),
-                    AppTextField(
-                      controller: _lastNameController,
-                      hint: 'Ex. Dupont',
-                      errorText: _lastNameError,
-                    ),
-                    const SizedBox(height: 20),
-                    const AppFieldLabel('Adresse e-mail *'),
+                    const SizedBox(height: 14),
                     AppTextField(
                       controller: _emailController,
+                      label: 'Adresse e-mail',
                       hint: 'nom@domaine.fr',
+                      icon: Icons.mail_outline_rounded,
                       keyboardType: TextInputType.emailAddress,
+                      textInputAction: TextInputAction.next,
+                      autofillHints: const [AutofillHints.email],
                       errorText: _emailError,
                     ),
-                    const SizedBox(height: 20),
-                    const AppFieldLabel('Numero de telephone *'),
+                    const SizedBox(height: 14),
                     AppTextField(
                       controller: _phoneController,
-                      hint: '10 chiffres (ex. 0612345678)',
+                      label: 'Téléphone',
+                      hint: '0612345678',
+                      icon: Icons.phone_outlined,
                       keyboardType: TextInputType.phone,
+                      textInputAction: TextInputAction.next,
                       maxLength: 10,
+                      autofillHints: const [AutofillHints.telephoneNumber],
                       errorText: _phoneError,
                     ),
-                    const SizedBox(height: 20),
-                    const AppFieldLabel('Mot de passe *'),
+                    const SizedBox(height: 14),
                     AppTextField(
                       controller: _passwordController,
-                      hint: '6 caracteres minimum',
+                      label: 'Mot de passe',
+                      hint: '6 caractères minimum',
+                      icon: Icons.lock_outline_rounded,
                       obscure: true,
+                      textInputAction: TextInputAction.done,
+                      autofillHints: const [AutofillHints.newPassword],
+                      onSubmitted: (_) => _submit(),
                       errorText: _passwordError,
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 28),
                     AppPrimaryButton(
-                      label: _submitting ? 'Enregistrement...' : 'Creer mon compte',
-                      onPressed: _submitting ? null : _submit,
-                      height: 60,
+                      label: 'Créer mon compte',
+                      loading: _submitting,
+                      onPressed: _submit,
                     ),
                   ],
                 ),
               ),
             ),
-          ],
+          ),
         ),
       ),
     );

@@ -4,8 +4,8 @@ import '../data/store.dart';
 import '../theme/app_colors.dart';
 import '../widgets/common.dart';
 
-/// Port of MealReservationRestaurateurProductFormActivity.kt, now wired to
-/// real persistence (create/edit/delete a Product).
+/// Create / edit / delete a product, with a live preview of how it will look
+/// on the client menu.
 class RestaurateurProductFormScreen extends StatefulWidget {
   final Product? product;
 
@@ -16,11 +16,14 @@ class RestaurateurProductFormScreen extends StatefulWidget {
 }
 
 class _RestaurateurProductFormScreenState extends State<RestaurateurProductFormScreen> {
-  late final TextEditingController _nameController;
-  late final TextEditingController _descriptionController;
-  late final TextEditingController _priceController;
-  late final TextEditingController _categoryController;
-  late bool _enabled;
+  late final TextEditingController _nameController = TextEditingController(text: widget.product?.name ?? '');
+  late final TextEditingController _descriptionController =
+      TextEditingController(text: widget.product?.description ?? '');
+  late final TextEditingController _priceController = TextEditingController(
+    text: widget.product == null ? '' : widget.product!.unitPrice.toStringAsFixed(2).replaceAll('.', ','),
+  );
+  late final TextEditingController _categoryController = TextEditingController(text: widget.product?.category ?? '');
+  late bool _enabled = widget.product?.enabled ?? true;
 
   String? _nameError;
   String? _priceError;
@@ -29,17 +32,11 @@ class _RestaurateurProductFormScreenState extends State<RestaurateurProductFormS
 
   bool get _isEditing => widget.product != null;
 
+  double? get _price => double.tryParse(_priceController.text.trim().replaceAll(',', '.'));
+
   @override
   void initState() {
     super.initState();
-    final product = widget.product;
-    _nameController = TextEditingController(text: product?.name ?? '');
-    _descriptionController = TextEditingController(text: product?.description ?? '');
-    _priceController = TextEditingController(
-      text: product == null ? '' : product.unitPrice.toStringAsFixed(2),
-    );
-    _categoryController = TextEditingController(text: product?.category ?? '');
-    _enabled = product?.enabled ?? true;
     _loadCategories();
   }
 
@@ -71,22 +68,13 @@ class _RestaurateurProductFormScreenState extends State<RestaurateurProductFormS
 
   Future<void> _save() async {
     final name = _nameController.text.trim();
-    final priceText = _priceController.text.trim().replaceAll(',', '.');
-    final price = double.tryParse(priceText);
+    final price = _price;
 
     setState(() {
-      _nameError = null;
-      _priceError = null;
+      _nameError = name.isEmpty ? 'Nom requis' : null;
+      _priceError = price == null || price <= 0 ? 'Prix invalide (ex : 9,90)' : null;
     });
-
-    if (name.isEmpty) {
-      setState(() => _nameError = 'Nom requis');
-      return;
-    }
-    if (price == null || price <= 0) {
-      setState(() => _priceError = 'Prix invalide (ex: 9.90)');
-      return;
-    }
+    if (_nameError != null || _priceError != null) return;
 
     setState(() => _saving = true);
     try {
@@ -95,13 +83,13 @@ class _RestaurateurProductFormScreenState extends State<RestaurateurProductFormS
           id: widget.product?.id ?? '',
           name: name,
           description: _descriptionController.text.trim(),
-          unitPrice: price,
+          unitPrice: price!,
           enabled: _enabled,
           category: _categoryController.text.trim(),
         ),
       );
     } catch (e) {
-      _showError('Echec de l\'enregistrement: $e');
+      _showError('Échec de l’enregistrement : $e');
       return;
     }
     if (!mounted) return;
@@ -121,20 +109,15 @@ class _RestaurateurProductFormScreenState extends State<RestaurateurProductFormS
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: AppColors.prussianBlue,
-        title: const Text('Supprimer le produit', style: TextStyle(color: Colors.white)),
-        content: Text(
-          'Supprimer "${product.name}" du catalogue ?',
-          style: const TextStyle(color: Colors.white70),
-        ),
+        icon: const Icon(Icons.delete_outline_rounded, color: AppColors.danger),
+        title: const Text('Supprimer cet article ?'),
+        content: Text('« ${product.name} » sera retiré de la carte. Les commandes déjà passées ne sont pas modifiées.'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Annuler'),
-          ),
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Annuler')),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Supprimer', style: TextStyle(color: AppColors.deleteRedStrong)),
+            style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+            child: const Text('Supprimer'),
           ),
         ],
       ),
@@ -145,7 +128,7 @@ class _RestaurateurProductFormScreenState extends State<RestaurateurProductFormS
     try {
       await MealReservationStore.deleteProduct(product.id);
     } catch (e) {
-      _showError('Echec de la suppression: $e');
+      _showError('Échec de la suppression : $e');
       return;
     }
     if (!mounted) return;
@@ -155,86 +138,167 @@ class _RestaurateurProductFormScreenState extends State<RestaurateurProductFormS
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(_isEditing ? 'Modifier le produit' : 'Nouveau produit')),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                _isEditing ? "Modification d'un article." : "Creation d'un article.",
-                style: const TextStyle(color: Colors.white, fontSize: 13),
-              ),
-              const SizedBox(height: 16),
-              AppTextField(
-                controller: _nameController,
-                hint: 'Nom du produit',
-                errorText: _nameError,
-              ),
-              const SizedBox(height: 12),
-              AppTextField(
-                controller: _descriptionController,
-                hint: 'Description',
-                maxLines: 4,
-              ),
-              const SizedBox(height: 12),
-              AppTextField(
-                controller: _priceController,
-                hint: 'Prix (ex: 9.90)',
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                errorText: _priceError,
-              ),
-              const SizedBox(height: 12),
-              AppTextField(
-                controller: _categoryController,
-                hint: 'Famille (ex: Boissons)',
-              ),
-              if (_existingCategories.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: _existingCategories
-                      .map(
-                        (category) => ActionChip(
-                          label: Text(category),
-                          backgroundColor: AppColors.cardOverlay,
-                          labelStyle: const TextStyle(color: Colors.white, fontSize: 12),
-                          onPressed: () => setState(() => _categoryController.text = category),
-                        ),
-                      )
-                      .toList(),
-                ),
-              ],
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  const Expanded(
-                    child: Text('Produit disponible', style: TextStyle(color: Colors.white, fontSize: 14)),
-                  ),
-                  Switch(value: _enabled, onChanged: (v) => setState(() => _enabled = v)),
-                ],
-              ),
-              const SizedBox(height: 16),
-              AppPrimaryButton(
-                label: _saving ? 'Enregistrement...' : 'Enregistrer',
-                height: 52,
-                onPressed: _saving ? null : _save,
-              ),
-              if (_isEditing) ...[
-                const SizedBox(height: 10),
-                AppPrimaryButton(
-                  label: 'Supprimer le produit',
-                  height: 52,
-                  backgroundColor: AppColors.deleteRedStrong,
-                  onPressed: _saving ? null : _delete,
-                ),
-              ],
-            ],
+      appBar: AppBar(
+        title: Text(_isEditing ? 'Modifier l’article' : 'Nouvel article'),
+        actions: [
+          if (_isEditing)
+            IconButton(
+              icon: const Icon(Icons.delete_outline_rounded, color: AppColors.danger),
+              tooltip: 'Supprimer',
+              onPressed: _saving ? null : _delete,
+            ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+        children: [
+          ListenableBuilder(
+            listenable: Listenable.merge([_nameController, _descriptionController, _priceController, _categoryController]),
+            builder: (context, _) => _Preview(
+              name: _nameController.text.trim(),
+              description: _descriptionController.text.trim(),
+              price: _price,
+              category: _categoryController.text.trim(),
+              enabled: _enabled,
+            ),
           ),
+          const SizedBox(height: 20),
+          const AppSectionTitle('Informations'),
+          AppTextField(
+            controller: _nameController,
+            label: 'Nom de l’article',
+            hint: 'ex : Burger du chef',
+            textInputAction: TextInputAction.next,
+            errorText: _nameError,
+          ),
+          const SizedBox(height: 12),
+          AppTextField(
+            controller: _descriptionController,
+            label: 'Description (optionnelle)',
+            hint: 'Ingrédients, allergènes…',
+            maxLines: 3,
+          ),
+          const SizedBox(height: 12),
+          AppTextField(
+            controller: _priceController,
+            label: 'Prix (€)',
+            hint: '9,90',
+            icon: Icons.euro_rounded,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            errorText: _priceError,
+          ),
+          const SizedBox(height: 24),
+          const AppSectionTitle('Famille'),
+          AppTextField(
+            controller: _categoryController,
+            label: 'Famille',
+            hint: 'ex : Boissons',
+            icon: Icons.category_outlined,
+          ),
+          if (_existingCategories.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _existingCategories
+                  .map((category) => ChoiceChip(
+                        label: Text(category),
+                        selected: _categoryController.text.trim() == category,
+                        onSelected: (_) => setState(() => _categoryController.text = category),
+                      ))
+                  .toList(),
+            ),
+          ],
+          const SizedBox(height: 24),
+          Card(
+            child: SwitchListTile(
+              value: _enabled,
+              onChanged: (v) => setState(() => _enabled = v),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: const Text('Visible sur la carte', style: TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: Text(
+                _enabled ? 'Les clients peuvent le commander' : 'Masqué pour les clients',
+                style: const TextStyle(color: AppColors.textSecondary),
+              ),
+            ),
+          ),
+        ],
+      ),
+      bottomNavigationBar: AppBottomBar(
+        child: AppPrimaryButton(
+          label: _isEditing ? 'Enregistrer les modifications' : 'Ajouter à la carte',
+          loading: _saving,
+          onPressed: _save,
         ),
       ),
+    );
+  }
+}
+
+/// How the product will appear in the client catalogue.
+class _Preview extends StatelessWidget {
+  final String name;
+  final String description;
+  final double? price;
+  final String category;
+  final bool enabled;
+
+  const _Preview({
+    required this.name,
+    required this.description,
+    required this.price,
+    required this.category,
+    required this.enabled,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'APERÇU CLIENT',
+          style: TextStyle(color: AppColors.textMuted, fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.2),
+        ),
+        const SizedBox(height: 8),
+        Opacity(
+          opacity: enabled ? 1 : 0.5,
+          child: AppCard(
+            margin: EdgeInsets.zero,
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CategoryAvatar(label: '$category $name', size: 56),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(name.isEmpty ? 'Nom de l’article' : name, style: Theme.of(context).textTheme.titleMedium),
+                      if (description.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          description,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                        ),
+                      ],
+                      const SizedBox(height: 10),
+                      Text(
+                        price == null ? '– €' : formatEur(price!),
+                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                      ),
+                    ],
+                  ),
+                ),
+                AddButton(onPressed: () {}),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

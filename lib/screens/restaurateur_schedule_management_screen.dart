@@ -3,55 +3,61 @@ import 'package:flutter/material.dart';
 import '../data/store.dart';
 import '../theme/app_colors.dart';
 import '../widgets/common.dart';
-import 'restaurateur_login_screen.dart';
 
-/// Port of MealReservationRestaurateurScheduleManagementActivity.kt: where
-/// the restaurateur decides which dates/services clients can book. Saved to
-/// Firestore, so the client home screen picks changes up immediately.
+/// Where the restaurateur opens dates/services for booking. Picking a date
+/// that is already open pre-selects its services, so the same form edits it.
 class RestaurateurScheduleManagementScreen extends StatefulWidget {
   const RestaurateurScheduleManagementScreen({super.key});
 
   @override
-  State<RestaurateurScheduleManagementScreen> createState() =>
-      _RestaurateurScheduleManagementScreenState();
+  State<RestaurateurScheduleManagementScreen> createState() => _RestaurateurScheduleManagementScreenState();
 }
 
-class _RestaurateurScheduleManagementScreenState
-    extends State<RestaurateurScheduleManagementScreen> {
+class _RestaurateurScheduleManagementScreenState extends State<RestaurateurScheduleManagementScreen> {
   late final Stream<List<AvailableSlot>> _slots = MealReservationStore.watchAvailableSlots();
+  List<AvailableSlot> _latestSlots = const [];
 
-  DateTime _selectedDate = DateTime.now();
+  DateTime _selectedDate = DateUtils.dateOnly(DateTime.now());
   bool _midi = false;
   bool _soir = false;
   bool _saving = false;
 
-  String _dateKeyOf(DateTime d) {
-    final y = d.year.toString().padLeft(4, '0');
-    final m = d.month.toString().padLeft(2, '0');
-    final day = d.day.toString().padLeft(2, '0');
-    return '$y$m$day';
+  static String _dateKeyOf(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}${d.month.toString().padLeft(2, '0')}${d.day.toString().padLeft(2, '0')}';
+
+  static String _formattedDateOf(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+
+  static DateTime _dateOfKey(String key) =>
+      DateTime(int.parse(key.substring(0, 4)), int.parse(key.substring(4, 6)), int.parse(key.substring(6, 8)));
+
+  AvailableSlot? get _existing {
+    final key = _dateKeyOf(_selectedDate);
+    for (final s in _latestSlots) {
+      if (s.dateKey == key) return s;
+    }
+    return null;
   }
 
-  String _formattedDateOf(DateTime d) {
-    final day = d.day.toString().padLeft(2, '0');
-    final m = d.month.toString().padLeft(2, '0');
-    return '$day/$m/${d.year}';
+  void _selectDate(DateTime d) {
+    setState(() {
+      _selectedDate = d;
+      final existing = _existing;
+      _midi = existing?.services.contains('Midi') ?? false;
+      _soir = existing?.services.contains('Soir') ?? false;
+    });
   }
 
   void _snack(String message) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
-  Future<void> _saveSlot() async {
-    final services = [
-      if (_midi) 'Midi',
-      if (_soir) 'Soir',
-    ];
+  Future<void> _save() async {
+    final services = [if (_midi) 'Midi', if (_soir) 'Soir'];
     if (services.isEmpty) {
-      _snack('Selectionne au moins un service');
+      _snack('Sélectionne au moins un service');
       return;
     }
-
     setState(() => _saving = true);
     try {
       await MealReservationStore.saveAvailableSlot(
@@ -62,128 +68,165 @@ class _RestaurateurScheduleManagementScreenState
         ),
       );
     } catch (e) {
-      if (!mounted) return;
-      setState(() => _saving = false);
-      _snack("Echec de l'enregistrement: $e");
+      if (mounted) {
+        setState(() => _saving = false);
+        _snack('Échec de l’enregistrement : $e');
+      }
       return;
     }
     if (!mounted) return;
-    setState(() {
-      _saving = false;
-      _midi = false;
-      _soir = false;
-    });
-    _snack('Plage enregistree');
+    setState(() => _saving = false);
+    _snack('${formatLongDate(_formattedDateOf(_selectedDate))} ouvert à la réservation');
   }
 
-  Future<void> _deleteSlot(AvailableSlot slot) async {
+  Future<void> _delete(AvailableSlot slot) async {
     try {
       await MealReservationStore.deleteAvailableSlot(slot.dateKey);
+      if (mounted) _snack('${formatLongDate(slot.date)} fermé à la réservation');
     } catch (e) {
-      if (mounted) _snack('Echec de la suppression: $e');
+      if (mounted) _snack('Échec de la suppression : $e');
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Dates et services'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.power_settings_new, color: AppColors.amberHoney),
-            tooltip: 'Se deconnecter',
-            onPressed: () => logoutRestaurateur(context),
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.cardOverlay,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Text("Date d'evenement", style: TextStyle(color: AppColors.amberHoney, fontSize: 15)),
-                  const SizedBox(height: 8),
-                  Theme(
-                    data: Theme.of(context).copyWith(
-                      colorScheme: const ColorScheme.dark(
-                        primary: AppColors.amberHoney,
-                        onPrimary: AppColors.prussianBlue,
-                        surface: AppColors.prussianBlue,
-                        onSurface: Colors.white,
-                      ),
-                    ),
-                    child: SizedBox(
-                      height: 320,
-                      child: CalendarDatePicker(
+      appBar: AppBar(title: const Text('Dates et services')),
+      body: StreamBuilder<List<AvailableSlot>>(
+        stream: _slots,
+        builder: (context, snapshot) {
+          _latestSlots = snapshot.data ?? const [];
+          final todayKey = _dateKeyOf(DateTime.now());
+          final upcoming = _latestSlots.where((s) => s.dateKey.compareTo(todayKey) >= 0).toList();
+          final past = _latestSlots.where((s) => s.dateKey.compareTo(todayKey) < 0).toList().reversed.toList();
+          final existing = _existing;
+
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+            children: [
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      CalendarDatePicker(
+                        key: ValueKey(_selectedDate),
                         initialDate: _selectedDate,
                         firstDate: DateTime(DateTime.now().year - 1),
                         lastDate: DateTime(DateTime.now().year + 2),
-                        onDateChanged: (d) => setState(() => _selectedDate = d),
+                        onDateChanged: _selectDate,
                       ),
-                    ),
+                      const Divider(height: 8),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(8, 12, 8, 0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              formatLongDate(_formattedDateOf(_selectedDate)),
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              existing == null ? 'Fermé à la réservation' : 'Ouvert : ${existing.services.join(' et ')}',
+                              style: TextStyle(color: existing == null ? AppColors.textMuted : AppColors.success),
+                            ),
+                            const SizedBox(height: 14),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _ServiceToggle(
+                                    label: 'Midi',
+                                    icon: Icons.wb_sunny_rounded,
+                                    selected: _midi,
+                                    onTap: () => setState(() => _midi = !_midi),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: _ServiceToggle(
+                                    label: 'Soir',
+                                    icon: Icons.nightlight_round,
+                                    selected: _soir,
+                                    onTap: () => setState(() => _soir = !_soir),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 14),
+                            AppPrimaryButton(
+                              label: existing == null ? 'Ouvrir cette date' : 'Mettre à jour',
+                              icon: Icons.event_available_rounded,
+                              loading: _saving,
+                              onPressed: _save,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                  const Text('Services disponibles', style: TextStyle(color: AppColors.amberHoney, fontSize: 15)),
-                  CheckboxListTile(
-                    value: _midi,
-                    onChanged: (v) => setState(() => _midi = v ?? false),
-                    title: const Text('Service midi', style: TextStyle(color: Colors.white)),
-                    controlAffinity: ListTileControlAffinity.leading,
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                  CheckboxListTile(
-                    value: _soir,
-                    onChanged: (v) => setState(() => _soir = v ?? false),
-                    title: const Text('Service soir', style: TextStyle(color: Colors.white)),
-                    controlAffinity: ListTileControlAffinity.leading,
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                  const SizedBox(height: 4),
-                  AppPrimaryButton(
-                    label: _saving ? 'Enregistrement...' : 'Enregistrer la plage',
-                    height: 48,
-                    onPressed: _saving ? null : _saveSlot,
-                  ),
-                ],
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Dates configurees',
-              style: TextStyle(color: AppColors.amberHoney, fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            StreamBuilder<List<AvailableSlot>>(
-              stream: _slots,
-              builder: (context, snapshot) {
-                if (snapshot.hasError) return AppErrorView(snapshot.error);
-                if (!snapshot.hasData) {
-                  return const Padding(padding: EdgeInsets.symmetric(vertical: 24), child: appLoader);
-                }
-                final slots = snapshot.data!;
-                if (slots.isEmpty) {
-                  return const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24),
-                    child: Center(
-                      child: Text('Aucune date configuree', style: TextStyle(color: Colors.white54)),
-                    ),
-                  );
-                }
-                return Column(
-                  children: slots.map((slot) => _SlotTile(slot: slot, onDelete: _deleteSlot)).toList(),
-                );
-              },
-            ),
-          ],
+              const SizedBox(height: 24),
+              if (snapshot.hasError) AppErrorView(snapshot.error),
+              AppSectionTitle('Dates ouvertes (${upcoming.length})'),
+              if (!snapshot.hasData && !snapshot.hasError)
+                appLoader
+              else if (upcoming.isEmpty)
+                const AppEmptyState(
+                  icon: Icons.event_busy_rounded,
+                  title: 'Aucune date ouverte',
+                  message: 'Choisis une date dans le calendrier et ouvre le service midi et/ou soir.',
+                )
+              else
+                ...upcoming.map((s) => _SlotTile(slot: s, onTap: () => _selectDate(_dateOfKey(s.dateKey)), onDelete: _delete)),
+              if (past.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                const AppSectionTitle('Dates passées'),
+                ...past.take(5).map((s) => _SlotTile(slot: s, past: true, onDelete: _delete)),
+              ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ServiceToggle extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _ServiceToggle({required this.label, required this.icon, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? AppColors.amber.withValues(alpha: 0.15) : AppColors.surfaceHigh,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: selected ? AppColors.amber : Colors.transparent, width: 1.5),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 20, color: selected ? AppColors.amber : AppColors.textSecondary),
+              const SizedBox(width: 8),
+              Text(label, style: TextStyle(fontWeight: FontWeight.w700, color: selected ? AppColors.amber : null)),
+              if (selected) ...[
+                const SizedBox(width: 6),
+                const Icon(Icons.check_rounded, size: 18, color: AppColors.amber),
+              ],
+            ],
+          ),
         ),
       ),
     );
@@ -192,41 +235,50 @@ class _RestaurateurScheduleManagementScreenState
 
 class _SlotTile extends StatelessWidget {
   final AvailableSlot slot;
+  final bool past;
+  final VoidCallback? onTap;
   final ValueChanged<AvailableSlot> onDelete;
 
-  const _SlotTile({required this.slot, required this.onDelete});
+  const _SlotTile({required this.slot, required this.onDelete, this.past = false, this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
+    return AppCard(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.cardOverlay,
-        borderRadius: BorderRadius.circular(6),
-      ),
+      margin: const EdgeInsets.only(bottom: 10),
+      onTap: onTap,
       child: Row(
         children: [
+          DateBadge(slot.date, muted: past),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  slot.date,
-                  style: const TextStyle(
-                    color: AppColors.amberHoney,
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  formatLongDate(slot.date),
+                  style: TextStyle(fontWeight: FontWeight.w700, color: past ? AppColors.textMuted : null),
                 ),
-                const SizedBox(height: 2),
-                Text(slot.services.join(' / '), style: const TextStyle(color: Colors.white, fontSize: 13)),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 6,
+                  children: slot.services
+                      .map((s) => Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceHigh,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(s, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                          ))
+                      .toList(),
+                ),
               ],
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.delete_outline, color: AppColors.deleteRed),
-            tooltip: 'Supprimer',
+            icon: const Icon(Icons.delete_outline_rounded, color: AppColors.textMuted),
+            tooltip: 'Fermer cette date',
             onPressed: () => onDelete(slot),
           ),
         ],

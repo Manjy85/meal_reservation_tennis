@@ -1,18 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../data/store.dart';
-import '../theme/app_colors.dart';
 import '../widgets/common.dart';
 import 'applicant_home_screen.dart';
 import 'applicant_identification_screen.dart';
 
-/// Port of MainActivity.java + MealReservationApplicantLoginActivity.kt
-/// (both point at the same layout: meal_reservation_applicant_login.xml).
-/// This is the client app's home screen. The restaurateur mode used to be
-/// reachable from here via a hidden icon button; it's now its own separate
-/// app (see main_admin.dart), so that entry point was removed.
 final RegExp _emailRegex = RegExp(r'^[\w.+-]+@[\w-]+\.[a-zA-Z]{2,}$');
 
+/// Client app start screen (when no session is active).
 class ApplicantLoginScreen extends StatefulWidget {
   const ApplicantLoginScreen({super.key});
 
@@ -78,51 +73,65 @@ class _ApplicantLoginScreenState extends State<ApplicantLoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Connexion client')),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text(
-                'Connectez-vous pour retrouver vos informations et continuer votre reservation.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.amberHoney, fontSize: 15),
-              ),
-              const SizedBox(height: 18),
-              const AppFieldLabel('Adresse e-mail'),
-              AppTextField(
-                controller: _emailController,
-                hint: 'nom@domaine.fr',
-                keyboardType: TextInputType.emailAddress,
-                errorText: _emailError,
-              ),
-              const SizedBox(height: 18),
-              const AppFieldLabel('Mot de passe'),
-              AppTextField(
-                controller: _passwordController,
-                hint: 'Votre mot de passe',
-                obscure: true,
-                errorText: _passwordError,
-              ),
-              const SizedBox(height: 24),
-              AppPrimaryButton(
-                label: _submitting ? 'Connexion...' : 'Se connecter',
-                onPressed: _submitting ? null : _submit,
-              ),
-              const SizedBox(height: 12),
-              AppPrimaryButton(
-                label: 'Creer un compte',
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const ApplicantIdentificationScreen(),
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 440),
+              child: AutofillGroup(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const AppBrandHeader(
+                      title: 'Bon retour !',
+                      subtitle: 'Connecte-toi pour réserver ton repas et suivre tes commandes.',
                     ),
-                  );
-                },
+                    const SizedBox(height: 32),
+                    AppTextField(
+                      controller: _emailController,
+                      label: 'Adresse e-mail',
+                      hint: 'nom@domaine.fr',
+                      icon: Icons.mail_outline_rounded,
+                      keyboardType: TextInputType.emailAddress,
+                      textInputAction: TextInputAction.next,
+                      autofillHints: const [AutofillHints.email],
+                      errorText: _emailError,
+                    ),
+                    const SizedBox(height: 14),
+                    AppTextField(
+                      controller: _passwordController,
+                      label: 'Mot de passe',
+                      icon: Icons.lock_outline_rounded,
+                      obscure: true,
+                      textInputAction: TextInputAction.done,
+                      autofillHints: const [AutofillHints.password],
+                      onSubmitted: (_) => _submit(),
+                      errorText: _passwordError,
+                    ),
+                    const SizedBox(height: 24),
+                    AppPrimaryButton(
+                      label: 'Se connecter',
+                      loading: _submitting,
+                      onPressed: _submit,
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text('Pas encore de compte ?'),
+                        TextButton(
+                          onPressed: () => Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => const ApplicantIdentificationScreen()),
+                          ),
+                          child: const Text('Créer un compte'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ],
+            ),
           ),
         ),
       ),

@@ -1,18 +1,24 @@
 import 'package:flutter/material.dart';
 
-/// Palette ported from app/src/main/res/values/colors.xml
+/// App palette: the original night-blue / amber identity, extended with
+/// surface levels and status colors for the redesigned UI.
 class AppColors {
   AppColors._();
 
-  static const Color prussianBlue = Color(0xFF0A0425); // background
-  static const Color amberHoney = Color(0xFFF3A916); // key components
-  static const Color mintCream = Color(0xFFF8FFF4); // text
-  static const Color iceBlue = Color(0xFFA5D6F7);
+  static const Color background = Color(0xFF0A0425);
+  static const Color surface = Color(0xFF16112F);
+  static const Color surfaceHigh = Color(0xFF211A45);
+  static const Color outline = Color(0x1FFFFFFF);
 
-  static const Color buttonDark = Color(0xFF333333);
-  static const Color cardOverlay = Color(0x1AFFFFFF);
-  static const Color footerOverlay = Color(0xFF223447);
-  static const Color deleteRed = Color(0xFF7A1E1E);
-  static const Color deleteRedStrong = Color(0xFF882222);
-  static const Color hintWhite = Color(0x66FFFFFF);
+  static const Color amber = Color(0xFFF3A916);
+  static const Color onAmber = Color(0xFF1C1300);
+
+  static const Color textPrimary = Color(0xFFF8FFF4);
+  static const Color textSecondary = Color(0xB3F8FFF4);
+  static const Color textMuted = Color(0x73F8FFF4);
+
+  static const Color info = Color(0xFFA5D6F7);
+  static const Color success = Color(0xFF4ADE80);
+  static const Color danger = Color(0xFFF87171);
+  static const Color neutral = Color(0xFF9CA3AF);
 }
