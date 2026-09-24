@@ -1,0 +1,374 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
+/// Shared data layer for both apps, backed by Cloud Firestore (data) and
+/// Firebase Auth (accounts). Both the client and admin apps read/write the
+/// same collections, and the `watch*` streams push changes in real time.
+/// Access control lives in firestore.rules, not here.
+///
+/// Collections: users/{uid}, admins/{uid}, products/{id}, slots/{dateKey},
+/// orders/{reservationNumber}, counters/{yyyyMMdd}.
+
+class Account {
+  final String firstName;
+  final String lastName;
+  final String email;
+  final String phone;
+
+  const Account({
+    required this.firstName,
+    required this.lastName,
+    required this.email,
+    required this.phone,
+  });
+
+  factory Account.fromMap(Map<String, dynamic> data) => Account(
+        firstName: data['firstName'] as String? ?? '',
+        lastName: data['lastName'] as String? ?? '',
+        email: data['email'] as String? ?? '',
+        phone: data['phone'] as String? ?? '',
+      );
+}
+
+class OrderProduct {
+  final String name;
+  final int qty;
+  final double unitPrice;
+
+  const OrderProduct({
+    required this.name,
+    required this.qty,
+    required this.unitPrice,
+  });
+
+  Map<String, dynamic> toMap() => {
+        'name': name,
+        'qty': qty,
+        'unitPrice': unitPrice,
+      };
+
+  factory OrderProduct.fromMap(Map<String, dynamic> data) => OrderProduct(
+        name: data['name'] as String? ?? '',
+        qty: (data['qty'] as num?)?.toInt() ?? 0,
+        unitPrice: (data['unitPrice'] as num?)?.toDouble() ?? 0.0,
+      );
+}
+
+class OrderHistoryEntry {
+  final String reservationNumber;
+  final String date;
+  final String service;
+  final double total;
+  final String email;
+  final String clientName;
+  final String clientPhone;
+  final String status;
+  final List<OrderProduct> products;
+
+  const OrderHistoryEntry({
+    required this.reservationNumber,
+    required this.date,
+    required this.service,
+    required this.total,
+    required this.email,
+    required this.clientName,
+    required this.clientPhone,
+    required this.status,
+    required this.products,
+  });
+
+  List<String> get productLines => products
+      .where((p) => p.name.isNotEmpty && p.qty > 0)
+      .map((p) => '${p.name} x${p.qty}')
+      .toList();
+
+  factory OrderHistoryEntry.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data() ?? const {};
+    return OrderHistoryEntry(
+      reservationNumber: doc.id,
+      date: data['date'] as String? ?? '',
+      service: data['service'] as String? ?? '',
+      total: (data['total'] as num?)?.toDouble() ?? 0.0,
+      email: data['email'] as String? ?? '',
+      clientName: data['clientName'] as String? ?? '',
+      clientPhone: data['clientPhone'] as String? ?? '',
+      status: data['status'] as String? ?? 'En attente',
+      products: (data['products'] as List<dynamic>? ?? const [])
+          .map((e) => OrderProduct.fromMap(Map<String, dynamic>.from(e as Map)))
+          .toList(),
+    );
+  }
+}
+
+/// A date + set of services (Midi/Soir) opened for reservation by the
+/// restaurateur. Clients can only book against these.
+class AvailableSlot {
+  final String dateKey; // yyyyMMdd, document id and sort key
+  final String date; // dd/MM/yyyy, for display and order records
+  final List<String> services; // subset of ['Midi', 'Soir']
+
+  const AvailableSlot({
+    required this.dateKey,
+    required this.date,
+    required this.services,
+  });
+
+  Map<String, dynamic> toMap() => {'date': date, 'services': services};
+
+  factory AvailableSlot.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data() ?? const {};
+    return AvailableSlot(
+      dateKey: doc.id,
+      date: data['date'] as String? ?? '',
+      services: (data['services'] as List<dynamic>? ?? const []).cast<String>(),
+    );
+  }
+}
+
+/// A menu item configured by the restaurateur. The client catalogue only
+/// shows enabled ones, grouped by `category` ("famille").
+class Product {
+  final String id; // empty = not saved yet
+  final String name;
+  final String description;
+  final double unitPrice;
+  final bool enabled;
+  final String category;
+
+  const Product({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.unitPrice,
+    required this.enabled,
+    this.category = '',
+  });
+
+  Map<String, dynamic> toMap() => {
+        'name': name,
+        'description': description,
+        'unitPrice': unitPrice,
+        'enabled': enabled,
+        'category': category,
+      };
+
+  factory Product.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data() ?? const {};
+    return Product(
+      id: doc.id,
+      name: data['name'] as String? ?? '',
+      description: data['description'] as String? ?? '',
+      unitPrice: (data['unitPrice'] as num?)?.toDouble() ?? 0.0,
+      enabled: data['enabled'] as bool? ?? true,
+      category: data['category'] as String? ?? '',
+    );
+  }
+}
+
+/// Thrown for sign-in problems, with a message ready to show to the user.
+class StoreAuthException implements Exception {
+  final String message;
+  const StoreAuthException(this.message);
+
+  @override
+  String toString() => message;
+}
+
+class MealReservationStore {
+  MealReservationStore._();
+
+  static FirebaseFirestore get _db => FirebaseFirestore.instance;
+  static FirebaseAuth get _auth => FirebaseAuth.instance;
+
+  static CollectionReference<Map<String, dynamic>> get _users => _db.collection('users');
+  static CollectionReference<Map<String, dynamic>> get _admins => _db.collection('admins');
+  static CollectionReference<Map<String, dynamic>> get _products => _db.collection('products');
+  static CollectionReference<Map<String, dynamic>> get _slots => _db.collection('slots');
+  static CollectionReference<Map<String, dynamic>> get _orders => _db.collection('orders');
+  static CollectionReference<Map<String, dynamic>> get _counters => _db.collection('counters');
+
+  // ---- Auth ----------------------------------------------------------
+
+  static bool get isSignedIn => _auth.currentUser != null;
+
+  /// Waits for Firebase Auth to restore a persisted session (async on web).
+  static Future<void> waitForAuthRestore() => _auth.authStateChanges().first;
+
+  static Future<void> signIn(String email, String password) async {
+    try {
+      await _auth.signInWithEmailAndPassword(email: email, password: password);
+    } on FirebaseAuthException catch (e) {
+      throw StoreAuthException(_authMessage(e));
+    }
+  }
+
+  static Future<void> signUp({
+    required String firstName,
+    required String lastName,
+    required String email,
+    required String phone,
+    required String password,
+  }) async {
+    try {
+      final cred = await _auth.createUserWithEmailAndPassword(email: email, password: password);
+      await _users.doc(cred.user!.uid).set({
+        'firstName': firstName,
+        'lastName': lastName,
+        'email': email,
+        'phone': phone,
+      });
+    } on FirebaseAuthException catch (e) {
+      throw StoreAuthException(_authMessage(e));
+    }
+  }
+
+  static Future<void> signOut() => _auth.signOut();
+
+  /// Admin rights = a document admins/{uid} exists (created by hand in the
+  /// Firebase console; clients can't write there).
+  static Future<bool> isCurrentUserAdmin() async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return false;
+    return (await _admins.doc(uid).get()).exists;
+  }
+
+  static Future<Account?> getCurrentAccount() async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return null;
+    final doc = await _users.doc(uid).get();
+    final data = doc.data();
+    return data == null ? null : Account.fromMap(data);
+  }
+
+  static String _authMessage(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'invalid-credential':
+      case 'wrong-password':
+      case 'user-not-found':
+      case 'invalid-email':
+        return 'Identifiants incorrects';
+      case 'email-already-in-use':
+        return 'Un compte existe deja avec cet email';
+      case 'weak-password':
+        return 'Mot de passe trop faible (6 caracteres minimum)';
+      case 'too-many-requests':
+        return 'Trop de tentatives, reessaie dans quelques minutes';
+      case 'network-request-failed':
+        return 'Pas de connexion internet';
+      case 'operation-not-allowed':
+      case 'configuration-not-found':
+        return "La connexion par email n'est pas activee dans Firebase";
+      default:
+        return 'Erreur de connexion (${e.code})';
+    }
+  }
+
+  // ---- Products ------------------------------------------------------
+
+  static List<Product> _sortedProducts(QuerySnapshot<Map<String, dynamic>> snap) =>
+      snap.docs.map(Product.fromDoc).toList()
+        ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+
+  static Stream<List<Product>> watchProducts() => _products.snapshots().map(_sortedProducts);
+
+  static Future<List<Product>> getProducts() async => _sortedProducts(await _products.get());
+
+  static Future<void> saveProduct(Product product) async {
+    if (product.id.isEmpty) {
+      await _products.add(product.toMap());
+    } else {
+      await _products.doc(product.id).set(product.toMap());
+    }
+  }
+
+  static Future<void> deleteProduct(String id) => _products.doc(id).delete();
+
+  // ---- Available slots -----------------------------------------------
+
+  static Stream<List<AvailableSlot>> watchAvailableSlots() => _slots.snapshots().map(
+        (snap) => snap.docs.map(AvailableSlot.fromDoc).toList()
+          ..sort((a, b) => a.dateKey.compareTo(b.dateKey)),
+      );
+
+  /// Upserts by dateKey: saving an already-configured date replaces its services.
+  static Future<void> saveAvailableSlot(AvailableSlot slot) =>
+      _slots.doc(slot.dateKey).set(slot.toMap());
+
+  static Future<void> deleteAvailableSlot(String dateKey) => _slots.doc(dateKey).delete();
+
+  // ---- Orders --------------------------------------------------------
+
+  static String _todayCompact() {
+    final now = DateTime.now();
+    final y = now.year.toString().padLeft(4, '0');
+    final m = now.month.toString().padLeft(2, '0');
+    final d = now.day.toString().padLeft(2, '0');
+    return '$y$m$d';
+  }
+
+  /// Allocates the next EVT-yyyyMMdd-NNNN number and creates the order in a
+  /// single transaction, so two clients ordering at once can't get the same
+  /// number. Returns the reservation number.
+  static Future<String> placeOrder({
+    required String date,
+    required String service,
+    required List<OrderProduct> products,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) throw const StoreAuthException('Session expiree, reconnecte-toi');
+
+    final account = await getCurrentAccount();
+    final total = products.fold(0.0, (acc, p) => acc + p.qty * p.unitPrice);
+    final clientName = [account?.firstName, account?.lastName]
+        .where((s) => s != null && s.isNotEmpty)
+        .join(' ');
+    final today = _todayCompact();
+    final counterRef = _counters.doc(today);
+
+    return _db.runTransaction((tx) async {
+      final counter = await tx.get(counterRef);
+      final next = ((counter.data()?['count'] as num?)?.toInt() ?? 0) + 1;
+      final number = 'EVT-$today-${next.toString().padLeft(4, '0')}';
+
+      tx.set(counterRef, {'count': next});
+      tx.set(_orders.doc(number), {
+        'uid': user.uid,
+        'date': date,
+        'service': service,
+        'total': total,
+        'email': account?.email ?? user.email ?? '',
+        'clientName': clientName,
+        'clientPhone': account?.phone ?? '',
+        'status': 'En attente',
+        'products': products.map((p) => p.toMap()).toList(),
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      return number;
+    });
+  }
+
+  static List<OrderHistoryEntry> _ordersOf(QuerySnapshot<Map<String, dynamic>> snap) =>
+      snap.docs.map(OrderHistoryEntry.fromDoc).toList()
+        ..sort((a, b) => a.reservationNumber.compareTo(b.reservationNumber));
+
+  /// Every order (admin only - rejected by the security rules otherwise).
+  static Stream<List<OrderHistoryEntry>> watchAllOrders() => _orders.snapshots().map(_ordersOf);
+
+  /// The signed-in client's own orders, most recent first.
+  static Stream<List<OrderHistoryEntry>> watchMyOrders() {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return Stream.value(const []);
+    return _orders
+        .where('uid', isEqualTo: uid)
+        .snapshots()
+        .map((snap) => _ordersOf(snap).reversed.toList());
+  }
+
+  static Future<OrderHistoryEntry?> getOrder(String reservationNumber) async {
+    final doc = await _orders.doc(reservationNumber).get();
+    return doc.exists ? OrderHistoryEntry.fromDoc(doc) : null;
+  }
+
+  static Future<void> updateOrderStatus(String reservationNumber, String status) =>
+      _orders.doc(reservationNumber).update({'status': status});
+}

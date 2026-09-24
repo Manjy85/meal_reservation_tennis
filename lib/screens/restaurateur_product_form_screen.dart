@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../data/local_store.dart';
+import '../data/store.dart';
 import '../theme/app_colors.dart';
 import '../widgets/common.dart';
 
@@ -44,7 +44,12 @@ class _RestaurateurProductFormScreenState extends State<RestaurateurProductFormS
   }
 
   Future<void> _loadCategories() async {
-    final products = await MealReservationLocalStore.getProducts();
+    final List<Product> products;
+    try {
+      products = await MealReservationStore.getProducts();
+    } catch (_) {
+      return; // suggestions are optional
+    }
     final categories = products
         .map((p) => p.category.trim())
         .where((c) => c.isNotEmpty)
@@ -84,19 +89,29 @@ class _RestaurateurProductFormScreenState extends State<RestaurateurProductFormS
     }
 
     setState(() => _saving = true);
-    await MealReservationLocalStore.saveProduct(
-      Product(
-        id: widget.product?.id ?? '',
-        name: name,
-        description: _descriptionController.text.trim(),
-        unitPrice: price,
-        enabled: _enabled,
-        category: _categoryController.text.trim(),
-      ),
-    );
+    try {
+      await MealReservationStore.saveProduct(
+        Product(
+          id: widget.product?.id ?? '',
+          name: name,
+          description: _descriptionController.text.trim(),
+          unitPrice: price,
+          enabled: _enabled,
+          category: _categoryController.text.trim(),
+        ),
+      );
+    } catch (e) {
+      _showError('Echec de l\'enregistrement: $e');
+      return;
+    }
+    if (!mounted) return;
+    Navigator.of(context).pop();
+  }
+
+  void _showError(String message) {
     if (!mounted) return;
     setState(() => _saving = false);
-    Navigator.of(context).pop(true);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _delete() async {
@@ -126,9 +141,15 @@ class _RestaurateurProductFormScreenState extends State<RestaurateurProductFormS
     );
     if (confirmed != true) return;
 
-    await MealReservationLocalStore.deleteProduct(product.id);
+    setState(() => _saving = true);
+    try {
+      await MealReservationStore.deleteProduct(product.id);
+    } catch (e) {
+      _showError('Echec de la suppression: $e');
+      return;
+    }
     if (!mounted) return;
-    Navigator.of(context).pop(true);
+    Navigator.of(context).pop();
   }
 
   @override

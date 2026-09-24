@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 
-import '../data/local_store.dart';
+import '../data/store.dart';
 import '../theme/app_colors.dart';
 import '../widgets/common.dart';
 import 'applicant_login_screen.dart';
 import 'applicant_product_catalogue_screen.dart';
 
-/// Home screen shown once the client is logged in. Shows the dates/services
-/// the restaurateur opened for reservation (AvailableSlot, configured from
-/// RestaurateurScheduleManagementScreen) and the client's own order
-/// history ("bons de commande").
+/// Home screen shown once the client is logged in: the dates/services the
+/// restaurateur opened for reservation, and the client's own orders ("bons
+/// de commande"). Both are live Firestore streams, so a date opened or an
+/// order status changed from the admin app shows up here immediately.
 class ApplicantHomeScreen extends StatefulWidget {
   const ApplicantHomeScreen({super.key});
 
@@ -18,38 +18,20 @@ class ApplicantHomeScreen extends StatefulWidget {
 }
 
 class _ApplicantHomeScreenState extends State<ApplicantHomeScreen> {
-  Account? _account;
-  List<AvailableSlot> _slots = [];
-  List<OrderHistoryEntry> _orders = [];
-  bool _loading = true;
+  late final Future<Account?> _account = MealReservationStore.getCurrentAccount();
+  late final Stream<List<AvailableSlot>> _slots = MealReservationStore.watchAvailableSlots();
+  late final Stream<List<OrderHistoryEntry>> _orders = MealReservationStore.watchMyOrders();
 
-  @override
-  void initState() {
-    super.initState();
-    _load();
+  static String get _todayKey {
+    final now = DateTime.now();
+    return '${now.year.toString().padLeft(4, '0')}'
+        '${now.month.toString().padLeft(2, '0')}'
+        '${now.day.toString().padLeft(2, '0')}';
   }
 
-  Future<void> _load() async {
-    setState(() => _loading = true);
-    final account = await MealReservationLocalStore.getCurrentAccount();
-    final slots = await MealReservationLocalStore.getAvailableSlots();
-    final allOrders = await MealReservationLocalStore.getOrdersHistory();
-
-    final email = account?.email.toLowerCase();
-    final myOrders = email == null
-        ? <OrderHistoryEntry>[]
-        : allOrders.where((o) => o.email.toLowerCase() == email).toList().reversed.toList();
-
+  Future<void> _logout() async {
+    await MealReservationStore.signOut();
     if (!mounted) return;
-    setState(() {
-      _account = account;
-      _slots = slots;
-      _orders = myOrders;
-      _loading = false;
-    });
-  }
-
-  void _logout() {
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const ApplicantLoginScreen()),
       (route) => false,
@@ -57,16 +39,14 @@ class _ApplicantHomeScreenState extends State<ApplicantHomeScreen> {
   }
 
   void _bookSlot(AvailableSlot slot, String service) {
-    Navigator.of(context)
-        .push(
+    Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => ApplicantProductCatalogueScreen(
           selectedDate: slot.date,
           selectedService: service,
         ),
       ),
-    )
-        .then((_) => _load());
+    );
   }
 
   void _showOrderDetails(OrderHistoryEntry order) {
@@ -136,100 +116,137 @@ class _ApplicantHomeScreenState extends State<ApplicantHomeScreen> {
         ],
       ),
       body: SafeArea(
-        child: _loading
-            ? const Center(child: CircularProgressIndicator(color: AppColors.amberHoney))
-            : RefreshIndicator(
-                color: AppColors.amberHoney,
-                onRefresh: _load,
-                child: ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    if (_account != null)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 16),
-                        child: Text(
-                          'Bonjour ${_account!.firstName}',
-                          style: const TextStyle(
-                            color: AppColors.amberHoney,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    const Text(
-                      'Dates disponibles',
-                      style: TextStyle(color: AppColors.amberHoney, fontSize: 17, fontWeight: FontWeight.bold),
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            FutureBuilder<Account?>(
+              future: _account,
+              builder: (context, snapshot) {
+                final account = snapshot.data;
+                if (account == null) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: Text(
+                    'Bonjour ${account.firstName}',
+                    style: const TextStyle(
+                      color: AppColors.amberHoney,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
                     ),
-                    const SizedBox(height: 10),
-                    if (_slots.isEmpty)
-                      const AppSectionCard(
-                        margin: EdgeInsets.zero,
-                        child: Text(
-                          'Aucune date disponible pour le moment. Revenez plus tard.',
-                          style: TextStyle(color: Colors.white, fontSize: 14),
-                        ),
-                      )
-                    else
-                      ..._slots.map(
-                        (slot) => AppSectionCard(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                slot.date,
-                                style: const TextStyle(
-                                  color: AppColors.amberHoney,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              Wrap(
-                                spacing: 10,
-                                children: slot.services
-                                    .map(
-                                      (service) => ElevatedButton(
-                                        onPressed: () => _bookSlot(slot, service),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: AppColors.buttonDark,
-                                          foregroundColor: Colors.white,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(8),
-                                          ),
-                                        ),
-                                        child: Text(service),
-                                      ),
-                                    )
-                                    .toList(),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Mes commandes',
-                      style: TextStyle(color: AppColors.amberHoney, fontSize: 17, fontWeight: FontWeight.bold),
+                  ),
+                );
+              },
+            ),
+            const _SectionTitle('Dates disponibles'),
+            StreamBuilder<List<AvailableSlot>>(
+              stream: _slots,
+              builder: (context, snapshot) {
+                if (snapshot.hasError) return AppErrorView(snapshot.error);
+                if (!snapshot.hasData) return appLoader;
+                final today = _todayKey;
+                final slots = snapshot.data!.where((s) => s.dateKey.compareTo(today) >= 0).toList();
+                if (slots.isEmpty) {
+                  return const AppSectionCard(
+                    margin: EdgeInsets.zero,
+                    child: Text(
+                      'Aucune date disponible pour le moment. Revenez plus tard.',
+                      style: TextStyle(color: Colors.white, fontSize: 14),
                     ),
-                    const SizedBox(height: 10),
-                    if (_orders.isEmpty)
-                      const AppSectionCard(
-                        margin: EdgeInsets.zero,
-                        child: Text(
-                          'Aucune commande pour le moment.',
-                          style: TextStyle(color: Colors.white, fontSize: 14),
-                        ),
-                      )
-                    else
-                      ..._orders.map(
-                        (order) => _OrderSummaryCard(
-                          order: order,
-                          onTap: () => _showOrderDetails(order),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
+                  );
+                }
+                return Column(
+                  children: slots.map((slot) => _SlotCard(slot: slot, onBook: _bookSlot)).toList(),
+                );
+              },
+            ),
+            const SizedBox(height: 16),
+            const _SectionTitle('Mes commandes'),
+            StreamBuilder<List<OrderHistoryEntry>>(
+              stream: _orders,
+              builder: (context, snapshot) {
+                if (snapshot.hasError) return AppErrorView(snapshot.error);
+                if (!snapshot.hasData) return appLoader;
+                final orders = snapshot.data!;
+                if (orders.isEmpty) {
+                  return const AppSectionCard(
+                    margin: EdgeInsets.zero,
+                    child: Text(
+                      'Aucune commande pour le moment.',
+                      style: TextStyle(color: Colors.white, fontSize: 14),
+                    ),
+                  );
+                }
+                return Column(
+                  children: orders
+                      .map((order) => _OrderSummaryCard(
+                            order: order,
+                            onTap: () => _showOrderDetails(order),
+                          ))
+                      .toList(),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  final String text;
+  const _SectionTitle(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Text(
+        text,
+        style: const TextStyle(color: AppColors.amberHoney, fontSize: 17, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+}
+
+class _SlotCard extends StatelessWidget {
+  final AvailableSlot slot;
+  final void Function(AvailableSlot slot, String service) onBook;
+
+  const _SlotCard({required this.slot, required this.onBook});
+
+  @override
+  Widget build(BuildContext context) {
+    return AppSectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            slot.date,
+            style: const TextStyle(
+              color: AppColors.amberHoney,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 10,
+            children: slot.services
+                .map(
+                  (service) => ElevatedButton(
+                    onPressed: () => onBook(slot, service),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.buttonDark,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    child: Text(service),
+                  ),
+                )
+                .toList(),
+          ),
+        ],
       ),
     );
   }

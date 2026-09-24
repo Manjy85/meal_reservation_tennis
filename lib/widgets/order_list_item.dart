@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../data/local_store.dart';
+import '../data/store.dart';
 import '../theme/app_colors.dart';
 import 'common.dart';
 

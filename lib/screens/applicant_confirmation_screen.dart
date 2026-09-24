@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 
-import '../data/local_store.dart';
+import '../data/store.dart';
 import '../theme/app_colors.dart';
 import '../widgets/common.dart';
 import 'applicant_home_screen.dart';
 import 'applicant_reservation_basket_screen.dart';
 
 /// Port of MealReservationApplicantNumActivity.kt (order confirmation /
-/// recap screen). On load: generates the reservation number and persists
-/// the order to local history, exactly like the original onCreate().
+/// recap screen). On load: creates the order in Firestore (which assigns
+/// the reservation number), then shows the recap.
 class ApplicantConfirmationScreen extends StatefulWidget {
   final String selectedDate;
   final String selectedService;
@@ -40,28 +40,14 @@ class _ApplicantConfirmationScreenState
     final recapItems = widget.items.where((i) => i.qty > 0).toList();
     final total = recapItems.fold(0.0, (sum, i) => sum + i.qty * i.unitPrice);
 
-    final reservationNumber = await MealReservationLocalStore.nextReservationNumber();
-    final account = await MealReservationLocalStore.getCurrentAccount();
-
-    final clientName = [account?.firstName, account?.lastName]
-        .where((s) => s != null && s.isNotEmpty)
-        .join(' ');
-
-    await MealReservationLocalStore.saveOrderHistory(
-      OrderHistoryEntry(
-        reservationNumber: reservationNumber,
-        date: widget.selectedDate,
-        service: widget.selectedService,
-        total: total,
-        email: account?.email ?? '',
-        clientName: clientName,
-        clientPhone: account?.phone ?? '',
-        status: 'En attente',
-        products: recapItems
-            .map((i) => OrderProduct(name: i.name, qty: i.qty, unitPrice: i.unitPrice))
-            .toList(),
-      ),
+    final reservationNumber = await MealReservationStore.placeOrder(
+      date: widget.selectedDate,
+      service: widget.selectedService,
+      products: recapItems
+          .map((i) => OrderProduct(name: i.name, qty: i.qty, unitPrice: i.unitPrice))
+          .toList(),
     );
+    final account = await MealReservationStore.getCurrentAccount();
 
     return _ConfirmationData(
       reservationNumber: reservationNumber,
@@ -79,11 +65,29 @@ class _ApplicantConfirmationScreenState
         child: FutureBuilder<_ConfirmationData>(
           future: _future,
           builder: (context, snapshot) {
-            if (!snapshot.hasData) {
-              return const Center(
-                child: CircularProgressIndicator(color: AppColors.amberHoney),
+            if (snapshot.hasError) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        "La commande n'a pas pu etre enregistree.\n${snapshot.error}",
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: Colors.white, fontSize: 15),
+                      ),
+                      const SizedBox(height: 16),
+                      AppPrimaryButton(
+                        label: 'Retour au panier',
+                        onPressed: () => Navigator.of(context).pop(),
+                      ),
+                    ],
+                  ),
+                ),
               );
             }
+            if (!snapshot.hasData) return appLoader;
             final data = snapshot.data!;
             final account = data.account;
             final identityText = account != null

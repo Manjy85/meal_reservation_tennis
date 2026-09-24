@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
 import '../widgets/common.dart';
-import 'applicant_login_screen.dart';
+import 'restaurateur_login_screen.dart';
 import 'restaurateur_catalog_management_screen.dart';
 import 'restaurateur_orders_list_screen.dart';
 import 'restaurateur_schedule_management_screen.dart';
@@ -10,13 +10,6 @@ import 'restaurateur_schedule_management_screen.dart';
 /// Port of MealReservationRestaurateurDashboardActivity.kt
 class RestaurateurDashboardScreen extends StatelessWidget {
   const RestaurateurDashboardScreen({super.key});
-
-  void _logout(BuildContext context) {
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const ApplicantLoginScreen()),
-      (route) => false,
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +20,7 @@ class RestaurateurDashboardScreen extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.power_settings_new, color: AppColors.amberHoney),
             tooltip: 'Se deconnecter',
-            onPressed: () => _logout(context),
+            onPressed: () => logoutRestaurateur(context),
           ),
         ],
       ),

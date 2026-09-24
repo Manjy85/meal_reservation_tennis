@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../data/local_store.dart';
+import '../data/store.dart';
 import '../theme/app_colors.dart';
 import '../widgets/common.dart';
-import 'applicant_login_screen.dart';
+import 'restaurateur_login_screen.dart';
 
 const _statuses = ['En attente', 'En preparation', 'Prete', 'Remise'];
 
@@ -30,9 +30,12 @@ class _RestaurateurOrderDetailScreenState extends State<RestaurateurOrderDetailS
   }
 
   Future<void> _load() async {
-    final order = await MealReservationLocalStore.findOrderByReservationNumber(
-      widget.reservationNumber,
-    );
+    OrderHistoryEntry? order;
+    try {
+      order = await MealReservationStore.getOrder(widget.reservationNumber);
+    } catch (_) {
+      order = null;
+    }
     if (!mounted) return;
     setState(() {
       _order = order;
@@ -45,19 +48,21 @@ class _RestaurateurOrderDetailScreenState extends State<RestaurateurOrderDetailS
     final order = _order;
     if (order == null || _selectedStatus == null) return;
     setState(() => _updating = true);
-    await MealReservationLocalStore.updateOrderStatus(order.reservationNumber, _selectedStatus!);
+    try {
+      await MealReservationStore.updateOrderStatus(order.reservationNumber, _selectedStatus!);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _updating = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Echec de la mise a jour: $e')),
+      );
+      return;
+    }
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Statut mis a jour')),
     );
     Navigator.of(context).pop();
-  }
-
-  void _logout() {
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const ApplicantLoginScreen()),
-      (route) => false,
-    );
   }
 
   @override
@@ -69,7 +74,7 @@ class _RestaurateurOrderDetailScreenState extends State<RestaurateurOrderDetailS
           IconButton(
             icon: const Icon(Icons.power_settings_new, color: AppColors.amberHoney),
             tooltip: 'Se deconnecter',
-            onPressed: _logout,
+            onPressed: () => logoutRestaurateur(context),
           ),
         ],
       ),
@@ -163,7 +168,7 @@ class _RestaurateurOrderDetailScreenState extends State<RestaurateurOrderDetailS
                 ),
                 const SizedBox(height: 10),
                 DropdownButtonFormField<String>(
-                  value: _selectedStatus,
+                  initialValue: _selectedStatus,
                   dropdownColor: AppColors.prussianBlue,
                   style: const TextStyle(color: Colors.white),
                   decoration: const InputDecoration(

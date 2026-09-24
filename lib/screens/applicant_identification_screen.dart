@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../data/local_store.dart';
+import '../data/store.dart';
 import '../theme/app_colors.dart';
 import '../widgets/common.dart';
 import 'applicant_home_screen.dart';
@@ -79,22 +79,30 @@ class _ApplicantIdentificationScreenState
     }
 
     setState(() => _submitting = true);
-    await MealReservationLocalStore.saveAccount(
-      firstName: firstName,
-      lastName: lastName,
-      email: email,
-      phone: phone,
-      password: password,
-    );
-    await MealReservationLocalStore.setCurrentAccountEmail(email);
+    try {
+      await MealReservationStore.signUp(
+        firstName: firstName,
+        lastName: lastName,
+        email: email,
+        phone: phone,
+        password: password,
+      );
+    } on StoreAuthException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _submitting = false;
+        _emailError = e.message;
+      });
+      return;
+    }
     if (!mounted) return;
-    setState(() => _submitting = false);
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Compte enregistre')),
     );
-    Navigator.of(context).push(
+    Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const ApplicantHomeScreen()),
+      (route) => false,
     );
   }
 

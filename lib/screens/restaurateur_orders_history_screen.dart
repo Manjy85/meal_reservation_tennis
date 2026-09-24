@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 
-import '../data/local_store.dart';
-import '../theme/app_colors.dart';
+import '../data/store.dart';
+import '../widgets/common.dart';
 import '../widgets/order_list_item.dart';
 import 'restaurateur_order_detail_screen.dart';
 
-/// Port of MealReservationRestaurateurOrdersHistoryActivity.kt (orders with
-/// status == "Remise"). No logout button here either, matching the original
-/// layout which doesn't have one on this screen.
+/// Port of MealReservationRestaurateurOrdersHistoryActivity.kt: orders whose
+/// status is "Remise", as a live Firestore stream. No logout button here,
+/// matching the original layout.
 class RestaurateurOrdersHistoryScreen extends StatefulWidget {
   const RestaurateurOrdersHistoryScreen({super.key});
 
@@ -17,59 +17,46 @@ class RestaurateurOrdersHistoryScreen extends StatefulWidget {
 }
 
 class _RestaurateurOrdersHistoryScreenState extends State<RestaurateurOrdersHistoryScreen> {
-  List<OrderHistoryEntry> _orders = [];
-  bool _loading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadOrders();
-  }
-
-  Future<void> _loadOrders() async {
-    setState(() => _loading = true);
-    final all = await MealReservationLocalStore.getOrdersHistory();
-    if (!mounted) return;
-    setState(() {
-      _orders = all.where((o) => o.status == 'Remise').toList();
-      _loading = false;
-    });
-  }
+  late final Stream<List<OrderHistoryEntry>> _orders = MealReservationStore.watchAllOrders();
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Historique')),
       body: SafeArea(
-        child: _loading
-            ? const Center(child: CircularProgressIndicator(color: AppColors.amberHoney))
-            : _orders.isEmpty
-                ? const Center(
-                    child: Text(
-                      'Aucune commande remise',
-                      style: TextStyle(color: Colors.white, fontSize: 16),
+        child: StreamBuilder<List<OrderHistoryEntry>>(
+          stream: _orders,
+          builder: (context, snapshot) {
+            if (snapshot.hasError) return AppErrorView(snapshot.error);
+            if (!snapshot.hasData) return appLoader;
+            final orders = snapshot.data!.where((o) => o.status == 'Remise').toList();
+            if (orders.isEmpty) {
+              return const Center(
+                child: Text(
+                  'Aucune commande remise',
+                  style: TextStyle(color: Colors.white, fontSize: 16),
+                ),
+              );
+            }
+            return ListView.builder(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+              itemCount: orders.length,
+              itemBuilder: (context, index) {
+                final order = orders[index];
+                return OrderListItem(
+                  order: order,
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => RestaurateurOrderDetailScreen(
+                        reservationNumber: order.reservationNumber,
+                      ),
                     ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
-                    itemCount: _orders.length,
-                    itemBuilder: (context, index) {
-                      final order = _orders[index];
-                      return OrderListItem(
-                        order: order,
-                        onTap: () async {
-                          await Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => RestaurateurOrderDetailScreen(
-                                reservationNumber: order.reservationNumber,
-                              ),
-                            ),
-                          );
-                          _loadOrders();
-                        },
-                      );
-                    },
                   ),
+                );
+              },
+            );
+          },
+        ),
       ),
     );
   }

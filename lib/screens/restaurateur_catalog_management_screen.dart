@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
 
-import '../data/local_store.dart';
+import '../data/store.dart';
 import '../theme/app_colors.dart';
 import '../widgets/common.dart';
-import 'applicant_login_screen.dart';
+import 'restaurateur_login_screen.dart';
 import 'restaurateur_product_form_screen.dart';
 
 const _allTab = 'Tous';
 
 /// Port of MealReservationRestaurateurCatalogManagementActivity.kt,
-/// redesigned SumUp-style: "Mes articles" with a "+" to add an item, and
-/// the products grouped into family tabs (plus a "Tous" tab).
+/// SumUp-style: "Mes articles" with a "+" to add an item and the products
+/// grouped into family tabs (plus "Tous"). Live Firestore stream, so the
+/// list and tabs update as soon as a product is saved or deleted.
 class RestaurateurCatalogManagementScreen extends StatefulWidget {
   const RestaurateurCatalogManagementScreen({super.key});
 
@@ -20,117 +21,83 @@ class RestaurateurCatalogManagementScreen extends StatefulWidget {
 }
 
 class _RestaurateurCatalogManagementScreenState
-    extends State<RestaurateurCatalogManagementScreen> with TickerProviderStateMixin {
-  List<Product> _products = [];
-  List<String> _tabs = [_allTab];
-  TabController? _tabController;
-  bool _loading = true;
+    extends State<RestaurateurCatalogManagementScreen> {
+  late final Stream<List<Product>> _products = MealReservationStore.watchProducts();
 
-  @override
-  void initState() {
-    super.initState();
-    _loadProducts();
-  }
-
-  @override
-  void dispose() {
-    _tabController?.dispose();
-    super.dispose();
-  }
-
-  Future<void> _loadProducts() async {
-    setState(() => _loading = true);
-    final products = await MealReservationLocalStore.getProducts();
-    if (!mounted) return;
-
-    final distinctCategories = products
-        .map((p) => p.category.trim())
-        .where((c) => c.isNotEmpty)
-        .toSet()
-        .toList()
-      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-    final tabs = [_allTab, ...distinctCategories];
-
-    final previousIndex = _tabController?.index ?? 0;
-    _tabController?.dispose();
-    _tabController = TabController(
-      length: tabs.length,
-      vsync: this,
-      initialIndex: previousIndex < tabs.length ? previousIndex : 0,
-    );
-
-    setState(() {
-      _products = products;
-      _tabs = tabs;
-      _loading = false;
-    });
-  }
-
-  List<Product> _productsFor(String tab) {
-    if (tab == _allTab) return _products;
-    return _products.where((p) => p.category.trim() == tab).toList();
-  }
-
-  Future<void> _openForm({Product? product}) async {
-    final changed = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-        builder: (_) => RestaurateurProductFormScreen(product: product),
-      ),
-    );
-    if (changed == true) _loadProducts();
-  }
-
-  void _logout(BuildContext context) {
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const ApplicantLoginScreen()),
-      (route) => false,
+  void _openForm({Product? product}) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => RestaurateurProductFormScreen(product: product)),
     );
   }
+
+  List<Widget> _actions() => [
+        IconButton(
+          icon: const Icon(Icons.add, color: AppColors.amberHoney),
+          tooltip: 'Ajouter un article',
+          onPressed: () => _openForm(),
+        ),
+        IconButton(
+          icon: const Icon(Icons.power_settings_new, color: AppColors.amberHoney),
+          tooltip: 'Se deconnecter',
+          onPressed: () => logoutRestaurateur(context),
+        ),
+      ];
 
   @override
   Widget build(BuildContext context) {
-    final ready = !_loading && _tabController != null;
+    return StreamBuilder<List<Product>>(
+      stream: _products,
+      builder: (context, snapshot) {
+        if (snapshot.hasError || !snapshot.hasData) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('Mes articles'), actions: _actions()),
+            body: snapshot.hasError ? AppErrorView(snapshot.error) : appLoader,
+          );
+        }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Mes articles'),
-        bottom: ready
-            ? TabBar(
-                controller: _tabController,
+        final products = snapshot.data!;
+        final categories = products
+            .map((p) => p.category.trim())
+            .where((c) => c.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+        final tabs = [_allTab, ...categories];
+
+        return DefaultTabController(
+          // A new set of families rebuilds the controller with the right length.
+          key: ValueKey(tabs.join('|')),
+          length: tabs.length,
+          child: Scaffold(
+            appBar: AppBar(
+              title: const Text('Mes articles'),
+              actions: _actions(),
+              bottom: TabBar(
                 isScrollable: true,
                 indicatorColor: AppColors.amberHoney,
                 labelColor: AppColors.amberHoney,
                 unselectedLabelColor: Colors.white70,
-                tabs: _tabs.map((t) => Tab(text: t)).toList(),
-              )
-            : null,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add, color: AppColors.amberHoney),
-            tooltip: 'Ajouter un article',
-            onPressed: () => _openForm(),
-          ),
-          IconButton(
-            icon: const Icon(Icons.power_settings_new, color: AppColors.amberHoney),
-            tooltip: 'Se deconnecter',
-            onPressed: () => _logout(context),
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: !ready
-            ? const Center(child: CircularProgressIndicator(color: AppColors.amberHoney))
-            : TabBarView(
-                controller: _tabController,
-                children: _tabs.map((tab) => _ProductList(
-                      products: _productsFor(tab),
-                      emptyMessage: tab == _allTab
-                          ? 'Aucun article. Appuie sur + pour en ajouter un.'
-                          : 'Aucun article dans cette famille.',
-                      onTapProduct: (p) => _openForm(product: p),
-                    )).toList(),
+                tabs: tabs.map((t) => Tab(text: t)).toList(),
               ),
-      ),
+            ),
+            body: SafeArea(
+              child: TabBarView(
+                children: tabs
+                    .map((tab) => _ProductList(
+                          products: tab == _allTab
+                              ? products
+                              : products.where((p) => p.category.trim() == tab).toList(),
+                          emptyMessage: tab == _allTab
+                              ? 'Aucun article. Appuie sur + pour en ajouter un.'
+                              : 'Aucun article dans cette famille.',
+                          onTapProduct: (p) => _openForm(product: p),
+                        ))
+                    .toList(),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

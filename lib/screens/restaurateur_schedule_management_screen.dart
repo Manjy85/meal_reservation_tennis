@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 
-import '../data/local_store.dart';
+import '../data/store.dart';
 import '../theme/app_colors.dart';
 import '../widgets/common.dart';
-import 'applicant_login_screen.dart';
+import 'restaurateur_login_screen.dart';
 
-/// Port of MealReservationRestaurateurScheduleManagementActivity.kt, now
-/// wired to real persistence: this is where the restaurateur decides which
-/// dates/services clients are allowed to book (read by ApplicantHomeScreen).
+/// Port of MealReservationRestaurateurScheduleManagementActivity.kt: where
+/// the restaurateur decides which dates/services clients can book. Saved to
+/// Firestore, so the client home screen picks changes up immediately.
 class RestaurateurScheduleManagementScreen extends StatefulWidget {
   const RestaurateurScheduleManagementScreen({super.key});
 
@@ -18,29 +18,12 @@ class RestaurateurScheduleManagementScreen extends StatefulWidget {
 
 class _RestaurateurScheduleManagementScreenState
     extends State<RestaurateurScheduleManagementScreen> {
+  late final Stream<List<AvailableSlot>> _slots = MealReservationStore.watchAvailableSlots();
+
   DateTime _selectedDate = DateTime.now();
   bool _midi = false;
   bool _soir = false;
   bool _saving = false;
-
-  List<AvailableSlot> _slots = [];
-  bool _loading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadSlots();
-  }
-
-  Future<void> _loadSlots() async {
-    setState(() => _loading = true);
-    final slots = await MealReservationLocalStore.getAvailableSlots();
-    if (!mounted) return;
-    setState(() {
-      _slots = slots;
-      _loading = false;
-    });
-  }
 
   String _dateKeyOf(DateTime d) {
     final y = d.year.toString().padLeft(4, '0');
@@ -55,48 +38,50 @@ class _RestaurateurScheduleManagementScreenState
     return '$day/$m/${d.year}';
   }
 
+  void _snack(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
   Future<void> _saveSlot() async {
     final services = [
       if (_midi) 'Midi',
       if (_soir) 'Soir',
     ];
     if (services.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Selectionne au moins un service')),
-      );
+      _snack('Selectionne au moins un service');
       return;
     }
 
     setState(() => _saving = true);
-    await MealReservationLocalStore.saveAvailableSlot(
-      AvailableSlot(
-        dateKey: _dateKeyOf(_selectedDate),
-        date: _formattedDateOf(_selectedDate),
-        services: services,
-      ),
-    );
+    try {
+      await MealReservationStore.saveAvailableSlot(
+        AvailableSlot(
+          dateKey: _dateKeyOf(_selectedDate),
+          date: _formattedDateOf(_selectedDate),
+          services: services,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      _snack("Echec de l'enregistrement: $e");
+      return;
+    }
     if (!mounted) return;
     setState(() {
       _saving = false;
       _midi = false;
       _soir = false;
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Plage enregistree')),
-    );
-    _loadSlots();
+    _snack('Plage enregistree');
   }
 
   Future<void> _deleteSlot(AvailableSlot slot) async {
-    await MealReservationLocalStore.deleteAvailableSlot(slot.dateKey);
-    _loadSlots();
-  }
-
-  void _logout() {
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const ApplicantLoginScreen()),
-      (route) => false,
-    );
+    try {
+      await MealReservationStore.deleteAvailableSlot(slot.dateKey);
+    } catch (e) {
+      if (mounted) _snack('Echec de la suppression: $e');
+    }
   }
 
   @override
@@ -108,7 +93,7 @@ class _RestaurateurScheduleManagementScreenState
           IconButton(
             icon: const Icon(Icons.power_settings_new, color: AppColors.amberHoney),
             tooltip: 'Se deconnecter',
-            onPressed: _logout,
+            onPressed: () => logoutRestaurateur(context),
           ),
         ],
       ),
@@ -177,60 +162,74 @@ class _RestaurateurScheduleManagementScreenState
               style: TextStyle(color: AppColors.amberHoney, fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            if (_loading)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 24),
-                child: Center(child: CircularProgressIndicator(color: AppColors.amberHoney)),
-              )
-            else if (_slots.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 24),
-                child: Center(
-                  child: Text('Aucune date configuree', style: TextStyle(color: Colors.white54)),
-                ),
-              )
-            else
-              ..._slots.map(
-                (slot) => Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.cardOverlay,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              slot.date,
-                              style: const TextStyle(
-                                color: AppColors.amberHoney,
-                                fontSize: 15,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              slot.services.join(' / '),
-                              style: const TextStyle(color: Colors.white, fontSize: 13),
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline, color: AppColors.deleteRed),
-                        tooltip: 'Supprimer',
-                        onPressed: () => _deleteSlot(slot),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+            StreamBuilder<List<AvailableSlot>>(
+              stream: _slots,
+              builder: (context, snapshot) {
+                if (snapshot.hasError) return AppErrorView(snapshot.error);
+                if (!snapshot.hasData) {
+                  return const Padding(padding: EdgeInsets.symmetric(vertical: 24), child: appLoader);
+                }
+                final slots = snapshot.data!;
+                if (slots.isEmpty) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Center(
+                      child: Text('Aucune date configuree', style: TextStyle(color: Colors.white54)),
+                    ),
+                  );
+                }
+                return Column(
+                  children: slots.map((slot) => _SlotTile(slot: slot, onDelete: _deleteSlot)).toList(),
+                );
+              },
+            ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _SlotTile extends StatelessWidget {
+  final AvailableSlot slot;
+  final ValueChanged<AvailableSlot> onDelete;
+
+  const _SlotTile({required this.slot, required this.onDelete});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.cardOverlay,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  slot.date,
+                  style: const TextStyle(
+                    color: AppColors.amberHoney,
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(slot.services.join(' / '), style: const TextStyle(color: Colors.white, fontSize: 13)),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline, color: AppColors.deleteRed),
+            tooltip: 'Supprimer',
+            onPressed: () => onDelete(slot),
+          ),
+        ],
       ),
     );
   }

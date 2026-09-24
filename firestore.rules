@@ -1,0 +1,65 @@
+rules_version = '2';
+
+// Access control for both apps. The client app and the admin app use the
+// same Firebase project; what an account may do depends only on whether its
+// uid has a document in /admins (created by hand in the Firebase console).
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // Admin membership: readable by the account itself (the admin app checks
+    // it at login), never writable from an app.
+    match /admins/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    // Client profiles (name, phone). Each client manages their own.
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow create, update: if signedIn() && request.auth.uid == uid;
+      allow delete: if false;
+    }
+
+    // Catalogue and bookable dates: everyone signed in reads, admins write.
+    match /products/{productId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /slots/{dateKey} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    // Daily reservation-number counter, bumped inside the order transaction.
+    match /counters/{day} {
+      allow read, write: if signedIn();
+    }
+
+    match /orders/{reservationNumber} {
+      // A client sees only their own orders; admins see all.
+      allow read: if isAdmin()
+        || (signedIn() && resource.data.uid == request.auth.uid);
+
+      // A client can only create an order for themselves, always "En attente".
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.status == 'En attente';
+
+      // Only admins change an order, and only its status.
+      allow update: if isAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']);
+
+      allow delete: if false;
+    }
+  }
+}

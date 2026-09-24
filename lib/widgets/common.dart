@@ -7,6 +7,31 @@ String formatEur(double amount) {
   return '$fixed EUR';
 }
 
+/// Shown when a Firestore read fails (offline, or rejected by the security
+/// rules - e.g. an admin account missing from the `admins` collection).
+class AppErrorView extends StatelessWidget {
+  final Object? error;
+  const AppErrorView(this.error, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Text(
+          'Impossible de charger les donnees.\n$error',
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: Colors.white70, fontSize: 14),
+        ),
+      ),
+    );
+  }
+}
+
+const Widget appLoader = Center(
+  child: CircularProgressIndicator(color: AppColors.amberHoney),
+);
+
 class AppPrimaryButton extends StatelessWidget {
   final String label;
   final VoidCallback? onPressed;
@@ -30,7 +55,7 @@ class AppPrimaryButton extends StatelessWidget {
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
           backgroundColor: backgroundColor,
-          disabledBackgroundColor: backgroundColor.withOpacity(0.6),
+          disabledBackgroundColor: backgroundColor.withValues(alpha: 0.6),
           disabledForegroundColor: Colors.white70,
           foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -166,8 +191,8 @@ class AppDecorativeDropdown extends StatelessWidget {
       width: double.infinity,
       height: 44,
       padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        border: const Border(
+      decoration: const BoxDecoration(
+        border: Border(
           bottom: BorderSide(color: AppColors.amberHoney, width: 2),
         ),
       ),

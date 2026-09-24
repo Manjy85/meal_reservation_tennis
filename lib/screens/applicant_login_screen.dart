@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
 
-import '../data/local_store.dart';
+import '../data/store.dart';
 import '../theme/app_colors.dart';
 import '../widgets/common.dart';
 import 'applicant_home_screen.dart';
 import 'applicant_identification_screen.dart';
-import 'restaurateur_login_screen.dart';
 
 /// Port of MainActivity.java + MealReservationApplicantLoginActivity.kt
 /// (both point at the same layout: meal_reservation_applicant_login.xml).
-/// This is the app's home screen.
+/// This is the client app's home screen. The restaurateur mode used to be
+/// reachable from here via a hidden icon button; it's now its own separate
+/// app (see main_admin.dart), so that entry point was removed.
 final RegExp _emailRegex = RegExp(r'^[\w.+-]+@[\w-]+\.[a-zA-Z]{2,}$');
 
 class ApplicantLoginScreen extends StatefulWidget {
@@ -57,39 +58,27 @@ class _ApplicantLoginScreenState extends State<ApplicantLoginScreen> {
     }
 
     setState(() => _submitting = true);
-    final valid = await MealReservationLocalStore.validateLogin(email, password);
-    if (!mounted) return;
-    setState(() => _submitting = false);
-
-    if (!valid) {
-      setState(() => _passwordError = 'Identifiants incorrects');
+    try {
+      await MealReservationStore.signIn(email, password);
+    } on StoreAuthException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _submitting = false;
+        _passwordError = e.message;
+      });
       return;
     }
-
-    await MealReservationLocalStore.setCurrentAccountEmail(email);
     if (!mounted) return;
-    Navigator.of(context).push(
+    Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const ApplicantHomeScreen()),
+      (route) => false,
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Connexion client'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.manage_accounts, color: AppColors.amberHoney),
-            tooltip: 'Acces mode restaurateur',
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const RestaurateurLoginScreen()),
-              );
-            },
-          ),
-        ],
-      ),
+      appBar: AppBar(title: const Text('Connexion client')),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),

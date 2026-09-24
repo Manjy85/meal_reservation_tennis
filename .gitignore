@@ -7,9 +7,5 @@ build/
 .pub/
 *.iml
 .idea/
-android/
-ios/
-macos/
 linux/
-windows/
-web/
+devtools_options.yaml
