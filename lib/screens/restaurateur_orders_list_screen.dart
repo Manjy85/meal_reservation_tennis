@@ -16,7 +16,7 @@ class RestaurateurOrdersListScreen extends StatefulWidget {
 }
 
 class _RestaurateurOrdersListScreenState extends State<RestaurateurOrdersListScreen> {
-  late final Stream<List<OrderHistoryEntry>> _orders = MealReservationStore.watchAllOrders();
+  late final Stream<List<OrderHistoryEntry>> _orders = MealReservationStore.watchActiveOrders();
   static final _filters = orderStatuses.where((s) => s != 'Remise').toList();
   String? _filter;
 
@@ -66,7 +66,7 @@ class _RestaurateurOrdersListScreenState extends State<RestaurateurOrdersListScr
           if (snapshot.hasError) return AppErrorView(snapshot.error);
           if (!snapshot.hasData) return appLoader;
 
-          final active = snapshot.data!.where((o) => o.status != 'Remise').toList();
+          final active = snapshot.data!;
           final visible = _filter == null ? active : active.where((o) => o.status == _filter).toList();
 
           return Column(

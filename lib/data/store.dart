@@ -112,6 +112,15 @@ class OrderHistoryEntry {
   }
 }
 
+/// A page of [MealReservationStore.getHistoryPage]; `cursor` fetches the next.
+class OrdersPage {
+  final List<OrderHistoryEntry> orders;
+  final DocumentSnapshot<Map<String, dynamic>>? cursor;
+  final bool hasMore;
+
+  const OrdersPage({required this.orders, required this.cursor, required this.hasMore});
+}
+
 /// A date + set of services (Midi/Soir) opened for reservation by the
 /// restaurateur. Clients can only book against these.
 class AvailableSlot {
@@ -483,8 +492,39 @@ class MealReservationStore {
       snap.docs.map(OrderHistoryEntry.fromDoc).toList()
         ..sort((a, b) => a.reservationNumber.compareTo(b.reservationNumber));
 
-  /// Every order (admin only - rejected by the security rules otherwise).
-  static Stream<List<OrderHistoryEntry>> watchAllOrders() => _orders.snapshots().map(_ordersOf);
+  // Admin queries (rejected by the security rules for clients). None of them
+  // reads the whole collection: a live query is billed one read per document
+  // each time a screen opens it, so they stay bounded however long the
+  // history gets.
+
+  /// Orders not handed over yet, live.
+  static Stream<List<OrderHistoryEntry>> watchActiveOrders() => _orders
+      .where('status', whereIn: orderStatuses.where((s) => s != 'Remise').toList())
+      .snapshots()
+      .map(_ordersOf);
+
+  /// Orders for one day (dd/MM/yyyy), any status, live.
+  static Stream<List<OrderHistoryEntry>> watchOrdersForDate(String date) =>
+      _orders.where('date', isEqualTo: date).snapshots().map(_ordersOf);
+
+  static const historyPageSize = 20;
+
+  /// One page of handed-over orders, most recent first. Pass the previous
+  /// page's cursor to get the next one. Not live: the past doesn't change.
+  /// Needs the (status, createdAt desc) index from firestore.indexes.json.
+  static Future<OrdersPage> getHistoryPage({DocumentSnapshot<Map<String, dynamic>>? after}) async {
+    var query = _orders
+        .where('status', isEqualTo: 'Remise')
+        .orderBy('createdAt', descending: true)
+        .limit(historyPageSize);
+    if (after != null) query = query.startAfterDocument(after);
+    final snap = await query.get();
+    return OrdersPage(
+      orders: snap.docs.map(OrderHistoryEntry.fromDoc).toList(),
+      cursor: snap.docs.isEmpty ? after : snap.docs.last,
+      hasMore: snap.docs.length == historyPageSize,
+    );
+  }
 
   /// The signed-in client's own orders, most recent first.
   static Stream<List<OrderHistoryEntry>> watchMyOrders() {

@@ -9,7 +9,8 @@ import 'restaurateur_orders_list_screen.dart';
 import 'restaurateur_schedule_management_screen.dart';
 
 /// Admin home, SumUp/Square-style: live counters for the order pipeline and
-/// today's service, then shortcuts to each management screen.
+/// today's service, then shortcuts to each management screen. Only reads
+/// in-progress and today's orders, never the whole history.
 class RestaurateurDashboardScreen extends StatefulWidget {
   const RestaurateurDashboardScreen({super.key});
 
@@ -18,7 +19,8 @@ class RestaurateurDashboardScreen extends StatefulWidget {
 }
 
 class _RestaurateurDashboardScreenState extends State<RestaurateurDashboardScreen> {
-  late final Stream<List<OrderHistoryEntry>> _orders = MealReservationStore.watchAllOrders();
+  late final Stream<List<OrderHistoryEntry>> _active = MealReservationStore.watchActiveOrders();
+  late final Stream<List<OrderHistoryEntry>> _todays = MealReservationStore.watchOrdersForDate(_today);
 
   static String get _today {
     final now = DateTime.now();
@@ -43,58 +45,62 @@ class _RestaurateurDashboardScreenState extends State<RestaurateurDashboardScree
         ],
       ),
       body: StreamBuilder<List<OrderHistoryEntry>>(
-        stream: _orders,
-        builder: (context, snapshot) {
-          final orders = snapshot.data ?? const <OrderHistoryEntry>[];
-          int countOf(String status) => orders.where((o) => o.status == status).length;
-          final todays = orders.where((o) => o.date == _today).length;
-          final active = orders.where((o) => o.status != 'Remise').length;
+        stream: _active,
+        builder: (context, snapshot) => StreamBuilder<List<OrderHistoryEntry>>(
+          stream: _todays,
+          builder: (context, todaySnapshot) {
+            final orders = snapshot.data ?? const <OrderHistoryEntry>[];
+            int countOf(String status) => orders.where((o) => o.status == status).length;
+            final todays = todaySnapshot.data?.length ?? 0;
+            final active = orders.length;
+            final error = snapshot.error ?? todaySnapshot.error;
 
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-            children: [
-              if (snapshot.hasError) AppErrorView(snapshot.error),
-              _TodayCard(
-                loading: !snapshot.hasData && !snapshot.hasError,
-                orders: todays,
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(child: _StatTile(status: 'En attente', count: countOf('En attente'))),
-                  const SizedBox(width: 10),
-                  Expanded(child: _StatTile(status: 'En preparation', count: countOf('En preparation'))),
-                  const SizedBox(width: 10),
-                  Expanded(child: _StatTile(status: 'Prete', count: countOf('Prete'))),
-                ],
-              ),
-              const SizedBox(height: 28),
-              const AppSectionTitle('Gestion'),
-              _NavCard(
-                icon: Icons.receipt_long_rounded,
-                color: AppColors.amber,
-                title: 'Commandes',
-                subtitle: active == 0 ? 'Aucune commande en cours' : '$active en cours',
-                badge: countOf('En attente'),
-                onTap: () => _open(const RestaurateurOrdersListScreen()),
-              ),
-              _NavCard(
-                icon: Icons.inventory_2_rounded,
-                color: AppColors.info,
-                title: 'Mes articles',
-                subtitle: 'Carte, prix, familles et disponibilité',
-                onTap: () => _open(const RestaurateurCatalogManagementScreen()),
-              ),
-              _NavCard(
-                icon: Icons.calendar_month_rounded,
-                color: AppColors.success,
-                title: 'Dates et services',
-                subtitle: 'Ouvrir les réservations midi / soir',
-                onTap: () => _open(const RestaurateurScheduleManagementScreen()),
-              ),
-            ],
-          );
-        },
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+              children: [
+                if (error != null) AppErrorView(error),
+                _TodayCard(
+                  loading: !todaySnapshot.hasData && !todaySnapshot.hasError,
+                  orders: todays,
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(child: _StatTile(status: 'En attente', count: countOf('En attente'))),
+                    const SizedBox(width: 10),
+                    Expanded(child: _StatTile(status: 'En preparation', count: countOf('En preparation'))),
+                    const SizedBox(width: 10),
+                    Expanded(child: _StatTile(status: 'Prete', count: countOf('Prete'))),
+                  ],
+                ),
+                const SizedBox(height: 28),
+                const AppSectionTitle('Gestion'),
+                _NavCard(
+                  icon: Icons.receipt_long_rounded,
+                  color: AppColors.amber,
+                  title: 'Commandes',
+                  subtitle: active == 0 ? 'Aucune commande en cours' : '$active en cours',
+                  badge: countOf('En attente'),
+                  onTap: () => _open(const RestaurateurOrdersListScreen()),
+                ),
+                _NavCard(
+                  icon: Icons.inventory_2_rounded,
+                  color: AppColors.info,
+                  title: 'Mes articles',
+                  subtitle: 'Carte, prix, familles et disponibilité',
+                  onTap: () => _open(const RestaurateurCatalogManagementScreen()),
+                ),
+                _NavCard(
+                  icon: Icons.calendar_month_rounded,
+                  color: AppColors.success,
+                  title: 'Dates et services',
+                  subtitle: 'Ouvrir les réservations midi / soir',
+                  onTap: () => _open(const RestaurateurScheduleManagementScreen()),
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }

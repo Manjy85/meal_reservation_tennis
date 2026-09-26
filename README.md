@@ -25,6 +25,11 @@ region `europe-west3`), accounts in Firebase Authentication.
    Only accounts listed in `admins` can log into the admin app. Client
    accounts are created from the client app's signup screen.
 
+3. **Create the Firestore index** used by the admin order history
+   (`firestore.indexes.json`): `npx -y firebase-tools deploy --only firestore:indexes`,
+   or open the admin history once and follow the link in the error to create
+   it from the console. It takes a few minutes to build.
+
 The project runs on the free Spark plan (no Cloud Functions). The security
 rules are in `firestore.rules`; see `SECURITY.md` for what they enforce,
 App Check and the console settings. After
@@ -55,6 +60,36 @@ Flavors are defined in `android/app/build.gradle.kts` (application IDs
 `com.example.meal_reservation_tennis.client` / `.admin`); each is registered
 as its own Android app in the Firebase project, with its options in
 `lib/firebase_options_client.dart` / `lib/firebase_options_admin.dart`.
+
+## Web version (hosted)
+
+Both apps also run in a browser, on Firebase Hosting (free on the Spark
+plan), with the same data and rules as the Android apps:
+
+- client: https://meal-reservation-tennis.web.app
+- admin: https://meal-reservation-tennis-admin.web.app
+
+On an iPhone, open the client URL in Safari → Share → *Sur l'écran
+d'accueil* to get an app-like icon (no App Store needed).
+
+One-time setup (needs Node.js, e.g. `sudo snap install node --classic`):
+
+```bash
+npx -y firebase-tools login
+npx -y firebase-tools hosting:sites:create meal-reservation-tennis-admin
+```
+
+If that site name is taken, pick another and update it in `.firebaserc`.
+
+Publish (builds both apps, then deploys):
+
+```bash
+./scripts/deploy_web.sh
+```
+
+`./scripts/build_web.sh` only builds them (`build/web_client`,
+`build/web_admin`). The `web/` folder is shared: the script renames the
+admin build afterwards.
 
 ## Structure
 

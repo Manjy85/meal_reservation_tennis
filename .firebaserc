@@ -1,5 +1,13 @@
 {
   "projects": {
     "default": "meal-reservation-tennis"
+  },
+  "targets": {
+    "meal-reservation-tennis": {
+      "hosting": {
+        "client": ["meal-reservation-tennis"],
+        "admin": ["meal-reservation-tennis-admin"]
+      }
+    }
   }
 }

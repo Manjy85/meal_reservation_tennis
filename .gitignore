@@ -9,3 +9,4 @@ build/
 .idea/
 linux/
 devtools_options.yaml
+.firebase/
