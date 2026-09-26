@@ -44,7 +44,7 @@ class _ApplicantIdentificationScreenState extends State<ApplicantIdentificationS
     final lastName = _lastNameController.text.trim();
     final email = _emailController.text.trim();
     final phone = _phoneController.text.trim();
-    final password = _passwordController.text.trim();
+    final password = _passwordController.text;
 
     setState(() {
       _firstNameError = firstName.isEmpty ? 'Prénom requis' : null;

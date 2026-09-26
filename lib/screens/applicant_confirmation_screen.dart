@@ -37,7 +37,9 @@ class _ApplicantConfirmationScreenState extends State<ApplicantConfirmationScree
       return await MealReservationStore.placeOrder(
         date: widget.selectedDate,
         service: widget.selectedService,
-        products: _items.map((i) => OrderProduct(name: i.name, qty: i.qty, unitPrice: i.unitPrice)).toList(),
+        products: _items
+            .map((i) => OrderProduct(productId: i.productId, name: i.name, qty: i.qty, unitPrice: i.unitPrice))
+            .toList(),
       );
     } catch (_) {
       if (mounted) setState(() => _failed = true);

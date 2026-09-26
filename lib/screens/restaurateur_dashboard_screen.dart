@@ -4,7 +4,7 @@ import '../data/store.dart';
 import '../theme/app_colors.dart';
 import '../widgets/common.dart';
 import 'restaurateur_catalog_management_screen.dart';
-import 'restaurateur_login_screen.dart';
+import 'restaurateur_account_screen.dart';
 import 'restaurateur_orders_list_screen.dart';
 import 'restaurateur_schedule_management_screen.dart';
 
@@ -36,9 +36,9 @@ class _RestaurateurDashboardScreenState extends State<RestaurateurDashboardScree
         title: const Text('Tableau de bord'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout_rounded),
-            tooltip: 'Se déconnecter',
-            onPressed: () => logoutRestaurateur(context),
+            icon: const Icon(Icons.account_circle_outlined),
+            tooltip: 'Mon compte',
+            onPressed: () => _open(const RestaurateurAccountScreen()),
           ),
         ],
       ),

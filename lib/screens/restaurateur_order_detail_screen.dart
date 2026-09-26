@@ -5,7 +5,7 @@ import '../theme/app_colors.dart';
 import '../widgets/common.dart';
 
 /// Full view of one order for the restaurateur: progress, client contact,
-/// items, and status selection.
+/// items, price check and status selection.
 class RestaurateurOrderDetailScreen extends StatefulWidget {
   final String reservationNumber;
 
@@ -17,6 +17,7 @@ class RestaurateurOrderDetailScreen extends StatefulWidget {
 
 class _RestaurateurOrderDetailScreenState extends State<RestaurateurOrderDetailScreen> {
   OrderHistoryEntry? _order;
+  List<String> _priceIssues = const [];
   bool _loading = true;
   String? _selectedStatus;
   bool _updating = false;
@@ -29,17 +30,41 @@ class _RestaurateurOrderDetailScreenState extends State<RestaurateurOrderDetailS
 
   Future<void> _load() async {
     OrderHistoryEntry? order;
+    var priceIssues = const <String>[];
     try {
       order = await MealReservationStore.getOrder(widget.reservationNumber);
+      if (order != null) priceIssues = _checkPrices(order, await MealReservationStore.getProducts());
     } catch (_) {
       order = null;
     }
     if (!mounted) return;
     setState(() {
       _order = order;
+      _priceIssues = priceIssues;
       _selectedStatus = orderStatuses.contains(order?.status) ? order?.status : orderStatuses.first;
       _loading = false;
     });
+  }
+
+  /// The client app computes prices itself and the security rules can't
+  /// check each line, so compare the order with the catalogue here. A price
+  /// changed in the catalogue after the order was placed also shows up.
+  static List<String> _checkPrices(OrderHistoryEntry order, List<Product> catalogue) {
+    final issues = <String>[];
+    final byId = {for (final p in catalogue) p.id: p};
+    for (final line in order.products) {
+      final product = byId[line.productId];
+      if (line.productId.isEmpty || product == null) continue;
+      if ((product.unitPrice - line.unitPrice).abs() > 0.005) {
+        issues.add('${line.name} : ${formatEur(line.unitPrice)} dans la commande, '
+            '${formatEur(product.unitPrice)} sur la carte');
+      }
+    }
+    final linesTotal = order.products.fold(0.0, (acc, p) => acc + p.qty * p.unitPrice);
+    if ((linesTotal - order.total).abs() > 0.005) {
+      issues.add('Total de ${formatEur(order.total)} alors que les articles font ${formatEur(linesTotal)}');
+    }
+    return issues;
   }
 
   Future<void> _updateStatus() async {
@@ -115,6 +140,10 @@ class _RestaurateurOrderDetailScreenState extends State<RestaurateurOrderDetailS
                         ],
                       ),
                     ),
+                    if (_priceIssues.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      _PriceWarning(issues: _priceIssues),
+                    ],
                     const SizedBox(height: 8),
                     const AppSectionTitle('Articles'),
                     AppCard(
@@ -173,6 +202,49 @@ class _RestaurateurOrderDetailScreenState extends State<RestaurateurOrderDetailS
                 onPressed: _selectedStatus == order.status ? null : _updateStatus,
               ),
             ),
+    );
+  }
+}
+
+class _PriceWarning extends StatelessWidget {
+  final List<String> issues;
+
+  const _PriceWarning({required this.issues});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.danger.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.danger),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: AppColors.danger),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text('Prix à vérifier', style: TextStyle(fontWeight: FontWeight.w800)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ...issues.map((issue) => Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text('• $issue'),
+              )),
+          const SizedBox(height: 8),
+          const Text(
+            'Encaisse le prix de la carte. Si tu n’as pas modifié ce prix depuis la commande, '
+            'elle a pu être falsifiée.',
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+          ),
+        ],
+      ),
     );
   }
 }

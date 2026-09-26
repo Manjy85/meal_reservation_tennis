@@ -5,14 +5,22 @@ import '../widgets/common.dart';
 import 'applicant_confirmation_screen.dart';
 
 class BasketItemData {
+  final String productId;
   final String name;
   final double unitPrice;
   final String category;
   int qty;
 
-  BasketItemData({required this.name, required this.unitPrice, required this.qty, this.category = ''});
+  BasketItemData({
+    required this.productId,
+    required this.name,
+    required this.unitPrice,
+    required this.qty,
+    this.category = '',
+  });
 
-  BasketItemData copy() => BasketItemData(name: name, unitPrice: unitPrice, qty: qty, category: category);
+  BasketItemData copy() =>
+      BasketItemData(productId: productId, name: name, unitPrice: unitPrice, qty: qty, category: category);
 }
 
 /// Checkout-style basket: editable lines, order summary, and a sticky

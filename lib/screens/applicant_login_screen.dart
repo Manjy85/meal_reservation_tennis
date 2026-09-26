@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../data/store.dart';
+import '../widgets/account_dialogs.dart';
 import '../widgets/common.dart';
 import 'applicant_home_screen.dart';
 import 'applicant_identification_screen.dart';
@@ -32,7 +33,7 @@ class _ApplicantLoginScreenState extends State<ApplicantLoginScreen> {
 
   Future<void> _submit() async {
     final email = _emailController.text.trim();
-    final password = _passwordController.text.trim();
+    final password = _passwordController.text;
 
     setState(() {
       _emailError = null;
@@ -68,6 +69,17 @@ class _ApplicantLoginScreenState extends State<ApplicantLoginScreen> {
       MaterialPageRoute(builder: (_) => const ApplicantHomeScreen()),
       (route) => false,
     );
+  }
+
+  Future<void> _forgotPassword() async {
+    final sent = await showDialog<bool>(
+      context: context,
+      builder: (_) => ResetPasswordDialog(initialEmail: _emailController.text.trim()),
+    );
+    if (sent != true || !mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      content: Text('Si un compte existe pour cette adresse, un e-mail de réinitialisation vient d’être envoyé.'),
+    ));
   }
 
   @override
@@ -109,7 +121,14 @@ class _ApplicantLoginScreenState extends State<ApplicantLoginScreen> {
                       onSubmitted: (_) => _submit(),
                       errorText: _passwordError,
                     ),
-                    const SizedBox(height: 24),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: _forgotPassword,
+                        child: const Text('Mot de passe oublié ?'),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
                     AppPrimaryButton(
                       label: 'Se connecter',
                       loading: _submitting,

@@ -25,7 +25,9 @@ region `europe-west3`), accounts in Firebase Authentication.
    Only accounts listed in `admins` can log into the admin app. Client
    accounts are created from the client app's signup screen.
 
-The security rules are in `firestore.rules` (already deployed). After
+The project runs on the free Spark plan (no Cloud Functions). The security
+rules are in `firestore.rules`; see `SECURITY.md` for what they enforce,
+App Check and the console settings. After
 editing them, redeploy with `firebase deploy --only firestore:rules`
 (needs the Firebase CLI) or from the console's *Rules* tab.
 
@@ -59,7 +61,8 @@ as its own Android app in the Firebase project, with its options in
 - `lib/data/store.dart` - the whole data layer: auth, products, slots, orders. `watch*` methods are live Firestore streams used by the screens.
 - `lib/screens/` - `applicant_*` are client screens, `restaurateur_*` are admin screens.
 - `lib/widgets/common.dart` - shared styled widgets; colors in `lib/theme/app_colors.dart`.
-- `firestore.rules` - who can read/write what (clients only see and create their own orders; only admins edit the catalogue, dates and order status).
+- `firestore.rules` - who can read/write what (clients only see and create their own orders on open dates; only admins edit the catalogue, dates and order status; the reservation counter only moves with its order).
+- `SECURITY.md` - security/GDPR setup and store-release checklist.
 
 Firestore collections: `users/{uid}`, `admins/{uid}`, `products/{id}`,
 `slots/{yyyyMMdd}`, `orders/{EVT-yyyyMMdd-NNNN}`, `counters/{yyyyMMdd}`

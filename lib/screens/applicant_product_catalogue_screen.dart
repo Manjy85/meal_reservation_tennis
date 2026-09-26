@@ -52,7 +52,13 @@ class _ApplicantProductCatalogueScreenState extends State<ApplicantProductCatalo
           selectedDate: widget.selectedDate,
           selectedService: widget.selectedService,
           initialItems: selected
-              .map((p) => BasketItemData(name: p.name, unitPrice: p.unitPrice, qty: _qtyOf(p), category: p.category))
+              .map((p) => BasketItemData(
+                    productId: p.id,
+                    name: p.name,
+                    unitPrice: p.unitPrice,
+                    qty: _qtyOf(p),
+                    category: p.category,
+                  ))
               .toList(),
         ),
       ),

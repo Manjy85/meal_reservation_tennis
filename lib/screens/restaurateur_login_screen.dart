@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../data/store.dart';
+import '../widgets/account_dialogs.dart';
 import '../widgets/common.dart';
 import 'restaurateur_dashboard_screen.dart';
 
@@ -40,7 +41,7 @@ class _RestaurateurLoginScreenState extends State<RestaurateurLoginScreen> {
 
   Future<void> _submit() async {
     final email = _emailController.text.trim();
-    final password = _passwordController.text.trim();
+    final password = _passwordController.text;
     if (email.isEmpty || password.isEmpty) {
       setState(() => _error = 'Email et mot de passe requis');
       return;
@@ -77,6 +78,17 @@ class _RestaurateurLoginScreenState extends State<RestaurateurLoginScreen> {
       MaterialPageRoute(builder: (_) => const RestaurateurDashboardScreen()),
       (route) => false,
     );
+  }
+
+  Future<void> _forgotPassword() async {
+    final sent = await showDialog<bool>(
+      context: context,
+      builder: (_) => ResetPasswordDialog(initialEmail: _emailController.text.trim()),
+    );
+    if (sent != true || !mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      content: Text('Si un compte existe pour cette adresse, un e-mail de réinitialisation vient d’être envoyé.'),
+    ));
   }
 
   @override
@@ -118,7 +130,14 @@ class _RestaurateurLoginScreenState extends State<RestaurateurLoginScreen> {
                       onSubmitted: (_) => _submit(),
                       errorText: _error,
                     ),
-                    const SizedBox(height: 24),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: _forgotPassword,
+                        child: const Text('Mot de passe oublié ?'),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
                     AppPrimaryButton(label: 'Se connecter', loading: _submitting, onPressed: _submit),
                   ],
                 ),

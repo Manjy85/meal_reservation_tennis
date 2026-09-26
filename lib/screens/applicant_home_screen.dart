@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/store.dart';
 import '../theme/app_colors.dart';
 import '../widgets/common.dart';
-import 'applicant_login_screen.dart';
+import 'applicant_account_screen.dart';
 import 'applicant_product_catalogue_screen.dart';
 
 /// Client home, two tabs: "Réserver" (dates opened by the restaurateur) and
@@ -19,18 +19,15 @@ class ApplicantHomeScreen extends StatefulWidget {
 }
 
 class _ApplicantHomeScreenState extends State<ApplicantHomeScreen> {
-  late final Future<Account?> _account = MealReservationStore.getCurrentAccount();
+  late Future<Account?> _account = MealReservationStore.getCurrentAccount();
   late final Stream<List<AvailableSlot>> _slots = MealReservationStore.watchAvailableSlots();
   late final Stream<List<OrderHistoryEntry>> _orders = MealReservationStore.watchMyOrders();
   late int _tab = widget.initialTab;
 
-  Future<void> _logout() async {
-    await MealReservationStore.signOut();
-    if (!mounted) return;
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const ApplicantLoginScreen()),
-      (route) => false,
-    );
+  /// Name changes made there show up in the greeting on return.
+  Future<void> _openAccount() async {
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ApplicantAccountScreen()));
+    if (mounted) setState(() => _account = MealReservationStore.getCurrentAccount());
   }
 
   void _openCatalogue(AvailableSlot slot, String service) {
@@ -48,9 +45,9 @@ class _ApplicantHomeScreenState extends State<ApplicantHomeScreen> {
         title: Text(_tab == 0 ? 'Réserver' : 'Mes commandes'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout_rounded),
-            tooltip: 'Se déconnecter',
-            onPressed: _logout,
+            icon: const Icon(Icons.account_circle_outlined),
+            tooltip: 'Mon compte',
+            onPressed: _openAccount,
           ),
         ],
       ),

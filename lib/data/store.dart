@@ -4,7 +4,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 /// Shared data layer for both apps, backed by Cloud Firestore (data) and
 /// Firebase Auth (accounts). Both the client and admin apps read/write the
 /// same collections, and the `watch*` streams push changes in real time.
-/// Access control lives in firestore.rules, not here.
+/// Access control lives in firestore.rules, not here (the project is on the
+/// free Spark plan, so there is no server code: the rules are the only
+/// guard).
 ///
 /// Collections: users/{uid}, admins/{uid}, products/{id}, slots/{dateKey},
 /// orders/{reservationNumber}, counters/{yyyyMMdd}.
@@ -36,23 +38,28 @@ class Account {
 }
 
 class OrderProduct {
+  /// Catalogue product id; empty on orders placed before it was recorded.
+  final String productId;
   final String name;
   final int qty;
   final double unitPrice;
 
   const OrderProduct({
+    this.productId = '',
     required this.name,
     required this.qty,
     required this.unitPrice,
   });
 
   Map<String, dynamic> toMap() => {
+        'productId': productId,
         'name': name,
         'qty': qty,
         'unitPrice': unitPrice,
       };
 
   factory OrderProduct.fromMap(Map<String, dynamic> data) => OrderProduct(
+        productId: data['productId'] as String? ?? '',
         name: data['name'] as String? ?? '',
         qty: (data['qty'] as num?)?.toInt() ?? 0,
         unitPrice: (data['unitPrice'] as num?)?.toDouble() ?? 0.0,
@@ -225,9 +232,126 @@ class MealReservationStore {
     } on FirebaseAuthException catch (e) {
       throw StoreAuthException(_authMessage(e));
     }
+    // Best effort: the account works without it, the link just proves the
+    // address belongs to the user.
+    try {
+      await _auth.currentUser?.sendEmailVerification();
+    } on FirebaseAuthException catch (_) {}
   }
 
   static Future<void> signOut() => _auth.signOut();
+
+  /// Sends Firebase's reset link. Succeeds even for an unknown address, so
+  /// the screen can't be used to find out who has an account.
+  static Future<void> sendPasswordReset(String email) async {
+    try {
+      await _auth.sendPasswordResetEmail(email: email);
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'user-not-found') return;
+      throw StoreAuthException(_authMessage(e));
+    }
+  }
+
+  static String get currentEmail => _auth.currentUser?.email ?? '';
+
+  static bool get isEmailVerified => _auth.currentUser?.emailVerified ?? false;
+
+  /// Refreshes the cached user, e.g. after the verification link was clicked.
+  /// Best effort: offline, the cached state is kept.
+  static Future<void> reloadUser() async {
+    try {
+      await _auth.currentUser?.reload();
+    } on FirebaseAuthException catch (_) {}
+  }
+
+  static Future<void> resendEmailVerification() async {
+    try {
+      await _auth.currentUser?.sendEmailVerification();
+    } on FirebaseAuthException catch (e) {
+      throw StoreAuthException(_authMessage(e));
+    }
+  }
+
+  /// Updates name and phone. The email stays the account's (firestore.rules
+  /// checks it matches the signed-in user).
+  static Future<void> updateProfile({
+    required String firstName,
+    required String lastName,
+    required String phone,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) throw const StoreAuthException('Session expiree, reconnecte-toi');
+    final account = await getCurrentAccount();
+    final email = account?.email.isNotEmpty == true ? account!.email : user.email ?? '';
+    await _users.doc(user.uid).set({
+      'firstName': firstName,
+      'lastName': lastName,
+      'email': email,
+      'phone': phone,
+    });
+  }
+
+  /// Firebase requires a recent login to change the password, hence the
+  /// current one.
+  static Future<void> changePassword(String currentPassword, String newPassword) async {
+    final user = _auth.currentUser;
+    if (user == null || user.email == null) throw const StoreAuthException('Session expiree, reconnecte-toi');
+    try {
+      await user.reauthenticateWithCredential(
+        EmailAuthProvider.credential(email: user.email!, password: currentPassword),
+      );
+    } on FirebaseAuthException catch (e) {
+      throw StoreAuthException(
+        e.code == 'too-many-requests' || e.code == 'network-request-failed'
+            ? _authMessage(e)
+            : 'Mot de passe actuel incorrect',
+      );
+    }
+    try {
+      await user.updatePassword(newPassword);
+    } on FirebaseAuthException catch (e) {
+      throw StoreAuthException(_authMessage(e));
+    }
+  }
+
+  /// Permanently deletes the signed-in client's account. The password is
+  /// asked again so a borrowed, unlocked phone can't be used to do it (and
+  /// Firebase requires a recent login to delete a user). Past orders are
+  /// kept for the restaurateur's books but stripped of personal data.
+  static Future<void> deleteAccount(String password) async {
+    final user = _auth.currentUser;
+    if (user == null || user.email == null) throw const StoreAuthException('Session expiree, reconnecte-toi');
+    try {
+      await user.reauthenticateWithCredential(
+        EmailAuthProvider.credential(email: user.email!, password: password),
+      );
+    } on FirebaseAuthException catch (e) {
+      throw StoreAuthException(_authMessage(e));
+    }
+
+    // Orders first: once the auth user is gone, the rules no longer let us
+    // touch them. A batch holds at most 500 writes.
+    final orders = await _orders.where('uid', isEqualTo: user.uid).get();
+    for (var i = 0; i < orders.docs.length; i += 450) {
+      final batch = _db.batch();
+      for (final doc in orders.docs.skip(i).take(450)) {
+        batch.update(doc.reference, {
+          'uid': 'deleted',
+          'email': '',
+          'clientName': 'Compte supprime',
+          'clientPhone': '',
+        });
+      }
+      await batch.commit();
+    }
+    await _users.doc(user.uid).delete();
+
+    try {
+      await user.delete();
+    } on FirebaseAuthException catch (e) {
+      throw StoreAuthException(_authMessage(e));
+    }
+  }
 
   /// Admin rights = a document admins/{uid} exists (created by hand in the
   /// Firebase console; clients can't write there).
@@ -256,6 +380,8 @@ class MealReservationStore {
         return 'Un compte existe deja avec cet email';
       case 'weak-password':
         return 'Mot de passe trop faible (6 caracteres minimum)';
+      case 'password-does-not-meet-requirements':
+        return 'Mot de passe trop faible : allonge-le et mélange lettres, chiffres et symboles';
       case 'too-many-requests':
         return 'Trop de tentatives, reessaie dans quelques minutes';
       case 'network-request-failed':
@@ -313,7 +439,8 @@ class MealReservationStore {
 
   /// Allocates the next EVT-yyyyMMdd-NNNN number and creates the order in a
   /// single transaction, so two clients ordering at once can't get the same
-  /// number. Returns the reservation number.
+  /// number. firestore.rules checks the counter and the order move together
+  /// and that the date/service is open. Returns the reservation number.
   static Future<String> placeOrder({
     required String date,
     required String service,

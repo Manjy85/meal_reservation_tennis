@@ -1,6 +1,7 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
+import 'app_check.dart';
 import 'data/store.dart';
 import 'firebase_options_admin.dart';
 import 'main.dart';
@@ -13,6 +14,7 @@ import 'screens/restaurateur_login_screen.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: AdminFirebaseOptions.currentPlatform);
+  await activateAppCheck();
   await MealReservationStore.waitForAuthRestore();
 
   var isAdmin = false;
